@@ -190,7 +190,7 @@
         ctx.scale(-1, 1);
 
         if (video.readyState >= 2) {
-          drawHalftone(ctx, video, w, h);
+          drawHalftone(ctx, video, w, h, latestResults);
         }
 
         if (latestResults) {
