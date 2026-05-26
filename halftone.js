@@ -1,5 +1,6 @@
-const CELL_SIZE = 10;
-const MAX_SQUARE_SIZE = 8;
+const CELL_SIZE = 6;
+const MAX_SQUARE_SIZE = 3.2;
+const MIN_BRIGHTNESS = 0.06;
 
 const offscreen = document.createElement("canvas");
 const offCtx = offscreen.getContext("2d", { willReadFrequently: true });
@@ -17,7 +18,9 @@ export function drawHalftone(ctx, video, canvasW, canvasH) {
   offCtx.drawImage(video, 0, 0, canvasW, canvasH);
   const frame = offCtx.getImageData(0, 0, canvasW, canvasH).data;
 
+  ctx.save();
   ctx.fillStyle = "#ffffff";
+  ctx.globalAlpha = 0.72;
 
   for (let y = 0; y < canvasH; y += CELL_SIZE) {
     for (let x = 0; x < canvasW; x += CELL_SIZE) {
@@ -43,8 +46,11 @@ export function drawHalftone(ctx, video, canvasW, canvasH) {
       }
 
       const brightness = brightnessSum / pixelCount;
-      const size = brightness * MAX_SQUARE_SIZE;
+      if (brightness < MIN_BRIGHTNESS) {
+        continue;
+      }
 
+      const size = brightness * MAX_SQUARE_SIZE;
       if (size <= 0) {
         continue;
       }
@@ -54,4 +60,6 @@ export function drawHalftone(ctx, video, canvasW, canvasH) {
       ctx.fillRect(centerX - size / 2, centerY - size / 2, size, size);
     }
   }
+
+  ctx.restore();
 }

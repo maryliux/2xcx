@@ -22,7 +22,11 @@
     <canvas id="main"></canvas>
     <video id="feed" playsinline></video>
     <div id="overlay">
-      <button id="begin-btn" type="button">begin creating</button>
+      <div id="overlay-card">
+        <p id="overlay-eyebrow">interactive hand instrument</p>
+        <button id="begin-btn" type="button">begin creating</button>
+        <p id="overlay-note">webcam + audio access required</p>
+      </div>
     </div>
 
     <script type="module">
@@ -74,7 +78,7 @@
         }
 
         beginButton.disabled = true;
-        beginButton.textContent = "starting...";
+        beginButton.textContent = "initializing...";
 
         try {
           await globalThis.Tone.start();
@@ -93,17 +97,24 @@
         } catch (error) {
           console.error("Failed to start instrument:", error);
           beginButton.disabled = false;
-          beginButton.textContent = "camera/audio blocked";
+          beginButton.textContent = "retry begin creating";
         }
       }
 
       function drawHud() {
         ctx.save();
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = "rgba(5, 10, 20, 0.62)";
+        ctx.fillRect(10, 10, 168, 42);
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.28)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(10.5, 10.5, 167, 41);
+
         ctx.fillStyle = "#ffffff";
-        ctx.font = "13px monospace";
+        ctx.font = '12px "Space Grotesk", monospace';
         ctx.textBaseline = "top";
-        ctx.fillText(`Hz: ${hudHz.toFixed(1)}`, 12, 12);
-        ctx.fillText(`Volume: ${(hudVolume * 100).toFixed(0)}%`, 12, 30);
+        ctx.fillText(`hz ${hudHz.toFixed(1)}`, 20, 18);
+        ctx.fillText(`vol ${(hudVolume * 100).toFixed(0)}%`, 98, 18);
         ctx.restore();
       }
 

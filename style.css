@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap");
 
 html,
 body {
@@ -6,12 +6,14 @@ body {
   height: 100%;
   margin: 0;
   overflow: hidden;
-  cursor: none;
   background: #050a14;
+  color: #ffffff;
+  cursor: default;
 }
 
 body {
   position: relative;
+  font-family: "Space Grotesk", Arial, sans-serif;
 }
 
 canvas {
@@ -33,21 +35,68 @@ video {
   inset: 0;
   display: grid;
   place-items: center;
+  background: radial-gradient(circle at center, rgba(255, 255, 255, 0.02), rgba(5, 10, 20, 0.92));
   user-select: none;
+}
+
+#overlay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.26) 0.8px, transparent 0.9px);
+  background-size: 10px 10px;
+  opacity: 0.13;
+  pointer-events: none;
+}
+
+#overlay-card {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: 28px 30px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(5, 10, 20, 0.82);
+  backdrop-filter: blur(2px);
+}
+
+#overlay-eyebrow {
+  margin: 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  opacity: 0.78;
 }
 
 #begin-btn {
   font-family: "Space Grotesk", Arial, sans-serif;
-  font-size: clamp(18px, 2vw, 24px);
-  letter-spacing: 0.02em;
+  font-size: clamp(18px, 2.1vw, 24px);
+  letter-spacing: 0.08em;
   text-transform: lowercase;
   color: #ffffff;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.68);
   border-radius: 999px;
-  padding: 12px 24px;
+  padding: 11px 25px;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, opacity 140ms ease;
+}
+
+#begin-btn:hover:not(:disabled) {
+  background: #ffffff;
+  color: #050a14;
 }
 
 #begin-btn:disabled {
-  opacity: 0.7;
+  opacity: 0.64;
+  cursor: progress;
+}
+
+#overlay-note {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.58;
 }
