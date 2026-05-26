@@ -21,7 +21,9 @@
   <body>
     <canvas id="main"></canvas>
     <video id="feed" playsinline></video>
-    <div id="overlay">touch to begin</div>
+    <div id="overlay">
+      <button id="begin-btn" type="button">begin creating</button>
+    </div>
 
     <script type="module">
       import { drawHalftone } from "./halftone.js";
@@ -32,6 +34,7 @@
       const ctx = canvas.getContext("2d");
       const video = document.getElementById("feed");
       const overlay = document.getElementById("overlay");
+      const beginButton = document.getElementById("begin-btn");
 
       let latestResults = null;
       let started = false;
@@ -70,6 +73,9 @@
           return;
         }
 
+        beginButton.disabled = true;
+        beginButton.textContent = "starting...";
+
         try {
           await globalThis.Tone.start();
           await initAudio();
@@ -86,7 +92,8 @@
           overlay.style.display = "none";
         } catch (error) {
           console.error("Failed to start instrument:", error);
-          overlay.textContent = "camera/audio blocked";
+          beginButton.disabled = false;
+          beginButton.textContent = "camera/audio blocked";
         }
       }
 
@@ -127,7 +134,7 @@
 
       resize();
       window.addEventListener("resize", resize);
-      canvas.addEventListener("click", begin);
+      beginButton.addEventListener("click", begin);
       requestAnimationFrame(frame);
     </script>
   </body>
