@@ -1,13 +1,54 @@
-const CELL_SIZE = 4;
-const BASE_STAR_SIZE = 1.7;
-const MIN_BRIGHTNESS = 0.08;
+const CELL_SIZE = 6;
+const MIN_SIGNAL = 0.06;
+const BASE_DOT_SIZE = 0.38;
+const MAX_DOT_SIZE = 2.8;
+const BACKGROUND_ALPHA = 0.055;
+const MOTION_GAIN = 2.2;
+const SHIFT_GAIN = 7.5;
 
 const offscreen = document.createElement("canvas");
 const offCtx = offscreen.getContext("2d", { willReadFrequently: true });
 
-function sparkleValue(x, y, time) {
-  const n = Math.sin(x * 12.9898 + y * 78.233 + time * 1.8) * 43758.5453;
-  return n - Math.floor(n);
+let previousLumaGrid = null;
+let gridCols = 0;
+let gridRows = 0;
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function ensureGrid(cols, rows) {
+  if (cols !== gridCols || rows !== gridRows || !previousLumaGrid) {
+    gridCols = cols;
+    gridRows = rows;
+    previousLumaGrid = new Float32Array(cols * rows);
+  }
+}
+
+function sampleCellLuma(frame, frameW, frameH, x, y, cellSize) {
+  const yEnd = Math.min(y + cellSize, frameH);
+  const xEnd = Math.min(x + cellSize, frameW);
+
+  let brightnessSum = 0;
+  let samples = 0;
+
+  // Strided sampling keeps this fast while preserving motion detail.
+  for (let py = y; py < yEnd; py += 2) {
+    for (let px = x; px < xEnd; px += 2) {
+      const i = (py * frameW + px) * 4;
+      const r = frame[i];
+      const g = frame[i + 1];
+      const b = frame[i + 2];
+      brightnessSum += (r + g + b) / 3 / 255;
+      samples += 1;
+    }
+  }
+
+  if (!samples) {
+    return 0;
+  }
+
+  return brightnessSum / samples;
 }
 
 export function drawHalftone(ctx, video, canvasW, canvasH) {
@@ -22,56 +63,61 @@ export function drawHalftone(ctx, video, canvasW, canvasH) {
 
   offCtx.drawImage(video, 0, 0, canvasW, canvasH);
   const frame = offCtx.getImageData(0, 0, canvasW, canvasH).data;
-  const time = performance.now() * 0.001;
+
+  const cols = Math.ceil(canvasW / CELL_SIZE);
+  const rows = Math.ceil(canvasH / CELL_SIZE);
+  ensureGrid(cols, rows);
+
+  const currentLumaGrid = new Float32Array(cols * rows);
+  let globalSum = 0;
+
+  for (let gy = 0; gy < rows; gy += 1) {
+    for (let gx = 0; gx < cols; gx += 1) {
+      const x = gx * CELL_SIZE;
+      const y = gy * CELL_SIZE;
+      const luma = sampleCellLuma(frame, canvasW, canvasH, x, y, CELL_SIZE);
+      const idx = gy * cols + gx;
+      currentLumaGrid[idx] = luma;
+      globalSum += luma;
+    }
+  }
+
+  const globalAverage = globalSum / (cols * rows || 1);
 
   ctx.save();
   ctx.fillStyle = "#ffffff";
 
-  for (let y = 0; y < canvasH; y += CELL_SIZE) {
-    for (let x = 0; x < canvasW; x += CELL_SIZE) {
-      let brightnessSum = 0;
-      let pixelCount = 0;
+  for (let gy = 0; gy < rows; gy += 1) {
+    for (let gx = 0; gx < cols; gx += 1) {
+      const idx = gy * cols + gx;
+      const luma = currentLumaGrid[idx];
+      const prevLuma = previousLumaGrid[idx];
 
-      const yEnd = Math.min(y + CELL_SIZE, canvasH);
-      const xEnd = Math.min(x + CELL_SIZE, canvasW);
+      const deviation = Math.abs(luma - globalAverage);
+      const motion = Math.abs(luma - prevLuma) * MOTION_GAIN;
+      const signal = clamp((deviation - MIN_SIGNAL) * 3.8 + motion, 0, 1);
 
-      for (let py = y; py < yEnd; py += 1) {
-        for (let px = x; px < xEnd; px += 1) {
-          const i = (py * canvasW + px) * 4;
-          const r = frame[i];
-          const g = frame[i + 1];
-          const b = frame[i + 2];
-          brightnessSum += (r + g + b) / 3 / 255;
-          pixelCount += 1;
-        }
-      }
+      const left = gx > 0 ? currentLumaGrid[idx - 1] : luma;
+      const right = gx < cols - 1 ? currentLumaGrid[idx + 1] : luma;
+      const up = gy > 0 ? currentLumaGrid[idx - cols] : luma;
+      const down = gy < rows - 1 ? currentLumaGrid[idx + cols] : luma;
+      const gradX = right - left;
+      const gradY = down - up;
 
-      if (!pixelCount) {
-        continue;
-      }
+      const centerX = gx * CELL_SIZE + CELL_SIZE * 0.5;
+      const centerY = gy * CELL_SIZE + CELL_SIZE * 0.5;
+      const shiftX = clamp(gradX * SHIFT_GAIN, -1.7, 1.7);
+      const shiftY = clamp(gradY * SHIFT_GAIN, -1.7, 1.7);
 
-      const brightness = brightnessSum / pixelCount;
-      if (brightness < MIN_BRIGHTNESS) {
-        continue;
-      }
-
-      const intensity = (brightness - MIN_BRIGHTNESS) / (1 - MIN_BRIGHTNESS);
-      const sparkle = 0.58 + sparkleValue(x, y, time) * 0.42;
-      const size = Math.max(0.55, BASE_STAR_SIZE * intensity * sparkle + 0.3);
-      const alpha = 0.13 + intensity * 0.62;
-
-      const centerX = Math.round(x + CELL_SIZE * 0.5);
-      const centerY = Math.round(y + CELL_SIZE * 0.5);
+      const alpha = BACKGROUND_ALPHA + signal * 0.87;
+      const radius = BASE_DOT_SIZE + signal * (MAX_DOT_SIZE - BASE_DOT_SIZE);
 
       ctx.globalAlpha = alpha;
-      ctx.fillRect(centerX - size * 0.5, centerY - size * 0.5, size, size);
+      ctx.beginPath();
+      ctx.arc(centerX + shiftX, centerY + shiftY, radius, 0, Math.PI * 2);
+      ctx.fill();
 
-      if (intensity > 0.55) {
-        const arm = Math.max(1, size * 0.62);
-        ctx.globalAlpha = alpha * 0.75;
-        ctx.fillRect(centerX - 0.5, centerY - arm, 1, arm * 2);
-        ctx.fillRect(centerX - arm, centerY - 0.5, arm * 2, 1);
-      }
+      previousLumaGrid[idx] = luma;
     }
   }
 
