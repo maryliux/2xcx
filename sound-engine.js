@@ -1,11 +1,22 @@
+let ToneLib = null;
+
 let oscillator = null;
+let synthGain = null;
 let filter = null;
 let reverb = null;
-let gain = null;
-let initialized = false;
+let outputGain = null;
+let pitchShift = null;
 
+let mediaElement = null;
+let mediaSource = null;
+let mediaObjectUrl = null;
+let loadedTrackName = "no track loaded";
+
+let initialized = false;
 let lastHz = 220;
 let lastVolume = 0;
+let smoothedPlaybackRate = 1;
+let smoothedPitch = 0;
 
 const TIP_INDICES = [4, 8, 12, 16, 20];
 
@@ -40,8 +51,54 @@ function opennessFromHand(landmarks) {
   return sum / TIP_INDICES.length;
 }
 
+function disposeMediaSource() {
+  if (mediaSource) {
+    mediaSource.disconnect();
+    mediaSource.dispose();
+    mediaSource = null;
+  }
+}
+
+function revokeMediaObjectUrl() {
+  if (mediaObjectUrl) {
+    URL.revokeObjectURL(mediaObjectUrl);
+    mediaObjectUrl = null;
+  }
+}
+
+function getDuration() {
+  if (!mediaElement || !Number.isFinite(mediaElement.duration)) {
+    return 0;
+  }
+  return mediaElement.duration;
+}
+
+function getCurrentTime() {
+  const duration = getDuration();
+  if (!mediaElement || !Number.isFinite(mediaElement.currentTime) || duration <= 0) {
+    return 0;
+  }
+  return clamp(mediaElement.currentTime, 0, duration);
+}
+
+export function getAudioState() {
+  const hasTrack = Boolean(mediaElement);
+  const duration = getDuration();
+  const currentTime = getCurrentTime();
+
+  return {
+    hasTrack,
+    fileName: hasTrack ? loadedTrackName : "no track loaded",
+    isPlaying: hasTrack ? !mediaElement.paused : false,
+    currentTime,
+    duration,
+    playbackRate: hasTrack ? mediaElement.playbackRate : smoothedPlaybackRate,
+    pitch: smoothedPitch,
+  };
+}
+
 export async function initAudio() {
-  const ToneLib = globalThis.Tone;
+  ToneLib = globalThis.Tone;
   if (!ToneLib) {
     throw new Error("Tone.js did not load.");
   }
@@ -51,53 +108,169 @@ export async function initAudio() {
     return;
   }
 
-  oscillator = new ToneLib.Oscillator({ type: "sine", frequency: lastHz });
-  filter = new ToneLib.Filter({ type: "lowpass", frequency: 1200 });
-  reverb = new ToneLib.Reverb({ decay: 2.2, wet: 0.2 });
-  gain = new ToneLib.Gain(lastVolume);
+  outputGain = new ToneLib.Gain(0).toDestination();
+  reverb = new ToneLib.Reverb({ decay: 2.3, wet: 0.2 });
+  filter = new ToneLib.Filter({ type: "lowpass", frequency: 1900, Q: 0.8 });
+  pitchShift = new ToneLib.PitchShift({ pitch: 0, wet: 1 });
+  synthGain = new ToneLib.Gain(0.18);
 
   if (typeof reverb.generate === "function") {
     await reverb.generate();
   }
 
-  oscillator.connect(filter);
+  pitchShift.connect(filter);
+  synthGain.connect(filter);
   filter.connect(reverb);
-  reverb.connect(gain);
-  gain.toDestination();
+  reverb.connect(outputGain);
+
+  oscillator = new ToneLib.Oscillator({
+    type: "sine",
+    frequency: lastHz,
+    volume: -18,
+  });
+  oscillator.connect(synthGain);
   oscillator.start();
+
   initialized = true;
 }
 
+export async function loadAudioFile(file) {
+  if (!file) {
+    throw new Error("No file selected.");
+  }
+
+  if (!initialized) {
+    await initAudio();
+  }
+
+  if (mediaElement) {
+    mediaElement.pause();
+  }
+  disposeMediaSource();
+  revokeMediaObjectUrl();
+
+  mediaObjectUrl = URL.createObjectURL(file);
+  const element = new Audio();
+  element.src = mediaObjectUrl;
+  element.preload = "auto";
+  element.crossOrigin = "anonymous";
+  element.loop = false;
+  element.playsInline = true;
+
+  await new Promise((resolve, reject) => {
+    const onLoaded = () => {
+      cleanup();
+      resolve();
+    };
+
+    const onError = () => {
+      cleanup();
+      reject(new Error("Failed to load this MP4 file."));
+    };
+
+    const cleanup = () => {
+      element.removeEventListener("loadedmetadata", onLoaded);
+      element.removeEventListener("error", onError);
+    };
+
+    element.addEventListener("loadedmetadata", onLoaded, { once: true });
+    element.addEventListener("error", onError, { once: true });
+  });
+
+  mediaElement = element;
+  mediaSource = new ToneLib.MediaElementSource(mediaElement);
+  mediaSource.connect(pitchShift);
+  loadedTrackName = file.name || "imported track";
+  smoothedPlaybackRate = 1;
+  smoothedPitch = 0;
+
+  return getAudioState();
+}
+
+export async function togglePlayback() {
+  if (!mediaElement) {
+    return getAudioState();
+  }
+
+  if (mediaElement.paused) {
+    await mediaElement.play();
+  } else {
+    mediaElement.pause();
+  }
+
+  return getAudioState();
+}
+
+export function seekToNormalized(normalizedPosition) {
+  if (!mediaElement) {
+    return getAudioState();
+  }
+
+  const duration = getDuration();
+  if (duration <= 0) {
+    return getAudioState();
+  }
+
+  mediaElement.currentTime = clamp(normalizedPosition, 0, 1) * duration;
+  return getAudioState();
+}
+
 export function updateSound(rightHand, leftHand) {
-  if (!initialized || !oscillator || !filter || !reverb || !gain) {
-    return { hz: lastHz, volume: lastVolume };
+  if (!initialized || !oscillator || !filter || !reverb || !outputGain || !synthGain || !pitchShift) {
+    return {
+      hz: lastHz,
+      volume: lastVolume,
+      ...getAudioState(),
+    };
   }
 
   if (rightHand && rightHand[0]) {
     const wristY = rightHand[0].y;
-    const hz = mapRange(wristY, 0, 1, 600, 80);
+    const hz = mapRange(wristY, 0, 1, 680, 90);
     const openness = opennessFromHand(rightHand);
     const volume = mapRange(openness, 0.05, 0.35, 0, 1);
 
-    oscillator.frequency.rampTo(hz, 0.1);
-    gain.gain.rampTo(volume, 0.05);
+    oscillator.frequency.rampTo(hz, 0.08);
+    outputGain.gain.rampTo(volume, 0.05);
+    synthGain.gain.rampTo(0.05 + volume * 0.22, 0.08);
+
+    if (mediaElement) {
+      const targetRate = mapRange(wristY, 0, 1, 1.7, 0.65);
+      smoothedPlaybackRate += (targetRate - smoothedPlaybackRate) * 0.18;
+      mediaElement.playbackRate = clamp(smoothedPlaybackRate, 0.5, 2);
+    }
 
     lastHz = hz;
     lastVolume = volume;
   } else {
-    gain.gain.rampTo(0, 0.05);
+    outputGain.gain.rampTo(0, 0.08);
+    synthGain.gain.rampTo(0.02, 0.1);
     lastVolume = 0;
   }
 
   if (leftHand && leftHand[0]) {
     const leftY = leftHand[0].y;
-    const wet = mapRange(leftY, 0, 1, 0.8, 0);
+    const leftX = leftHand[0].x;
     const openness = opennessFromHand(leftHand);
-    const filterFreq = mapRange(openness, 0.05, 0.35, 200, 8000);
+
+    const wet = mapRange(leftY, 0, 1, 0.72, 0.06);
+    const filterFreq = mapRange(openness, 0.05, 0.35, 260, 7800);
+    const targetPitch = mapRange(leftX, 0, 1, -8, 8);
 
     reverb.wet.rampTo(wet, 0.1);
     filter.frequency.rampTo(filterFreq, 0.1);
+    smoothedPitch += (targetPitch - smoothedPitch) * 0.2;
+    pitchShift.pitch = smoothedPitch;
+  } else {
+    reverb.wet.rampTo(0.2, 0.15);
+    filter.frequency.rampTo(1800, 0.15);
+    smoothedPitch += (0 - smoothedPitch) * 0.15;
+    pitchShift.pitch = smoothedPitch;
   }
 
-  return { hz: lastHz, volume: lastVolume };
+  return {
+    hz: lastHz,
+    volume: lastVolume,
+    ...getAudioState(),
+  };
 }

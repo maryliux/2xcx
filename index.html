@@ -21,6 +21,7 @@
   <body>
     <canvas id="main"></canvas>
     <video id="feed" playsinline></video>
+
     <div id="overlay">
       <div id="overlay-card">
         <p id="overlay-eyebrow">interactive hand instrument</p>
@@ -29,16 +30,51 @@
       </div>
     </div>
 
+    <div id="song-indicator">
+      <div id="song-controls">
+        <button id="import-audio-btn" type="button">import mp4</button>
+        <button id="play-toggle-btn" type="button" disabled>play</button>
+      </div>
+      <p id="song-title">no track loaded</p>
+      <div id="song-progress-track">
+        <div id="song-progress-fill"></div>
+      </div>
+      <p id="song-time">00:00 / 00:00</p>
+      <p id="song-hint">right pinch: play/pause · left pinch + move finger: scrub</p>
+    </div>
+
+    <input
+      id="audio-file-input"
+      type="file"
+      accept=".mp4,audio/mp4,video/mp4"
+      hidden
+    />
+
     <script type="module">
       import { drawHalftone } from "./halftone.js";
       import { drawHands, initTracker } from "./hand-tracker.js";
-      import { initAudio, updateSound } from "./sound-engine.js";
+      import {
+        getAudioState,
+        initAudio,
+        loadAudioFile,
+        seekToNormalized,
+        togglePlayback,
+        updateSound,
+      } from "./sound-engine.js";
 
       const canvas = document.getElementById("main");
       const ctx = canvas.getContext("2d");
       const video = document.getElementById("feed");
       const overlay = document.getElementById("overlay");
       const beginButton = document.getElementById("begin-btn");
+
+      const importAudioButton = document.getElementById("import-audio-btn");
+      const playToggleButton = document.getElementById("play-toggle-btn");
+      const audioFileInput = document.getElementById("audio-file-input");
+      const songTitle = document.getElementById("song-title");
+      const songTime = document.getElementById("song-time");
+      const songHint = document.getElementById("song-hint");
+      const songProgressFill = document.getElementById("song-progress-fill");
 
       let latestResults = null;
       let started = false;
@@ -47,9 +83,66 @@
       let previousHudVolume = 0;
       let hudHands = 0;
 
+      const gestureState = {
+        rightPinched: false,
+        leftPinched: false,
+        scrubbing: false,
+        lastToggleMs: 0,
+        lastSeekMs: 0,
+      };
+
+      function clamp(value, min, max) {
+        return Math.min(max, Math.max(min, value));
+      }
+
       function resize() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
+      }
+
+      function distance3D(a, b) {
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        const dz = (a.z || 0) - (b.z || 0);
+        return Math.hypot(dx, dy, dz);
+      }
+
+      function isPinched(hand) {
+        if (!hand || !hand[4] || !hand[8]) {
+          return false;
+        }
+        return distance3D(hand[4], hand[8]) < 0.05;
+      }
+
+      function formatTime(seconds) {
+        if (!Number.isFinite(seconds) || seconds <= 0) {
+          return "00:00";
+        }
+
+        const whole = Math.floor(seconds);
+        const mins = Math.floor(whole / 60);
+        const secs = whole % 60;
+        return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+      }
+
+      function updateSongIndicator(audioState) {
+        const hasTrack = Boolean(audioState?.hasTrack);
+        const duration = Number.isFinite(audioState?.duration) ? audioState.duration : 0;
+        const currentTime = Number.isFinite(audioState?.currentTime) ? audioState.currentTime : 0;
+        const progress = duration > 0 ? clamp(currentTime / duration, 0, 1) : 0;
+
+        songTitle.textContent = hasTrack ? audioState.fileName : "no track loaded";
+        songTime.textContent = `${formatTime(currentTime)} / ${formatTime(duration)}`;
+        songProgressFill.style.width = `${progress * 100}%`;
+
+        playToggleButton.disabled = !hasTrack;
+        playToggleButton.textContent = audioState?.isPlaying ? "pause" : "play";
+
+        if (gestureState.scrubbing) {
+          songHint.textContent = "scrubbing with left pinch";
+        } else {
+          songHint.textContent = "right pinch: play/pause · left pinch + move finger: scrub";
+        }
       }
 
       function selectHands(results) {
@@ -72,6 +165,34 @@
         });
 
         return { rightHand, leftHand };
+      }
+
+      function handleGesturePlayback(rightHand, leftHand) {
+        const now = performance.now();
+
+        const rightPinched = isPinched(rightHand);
+        if (
+          rightPinched &&
+          !gestureState.rightPinched &&
+          now - gestureState.lastToggleMs > 420
+        ) {
+          gestureState.lastToggleMs = now;
+          togglePlayback().catch((error) => {
+            console.error("Gesture play/pause failed", error);
+          });
+        }
+        gestureState.rightPinched = rightPinched;
+
+        const leftPinched = isPinched(leftHand);
+        gestureState.leftPinched = leftPinched;
+        gestureState.scrubbing = false;
+
+        if (leftPinched && leftHand?.[8] && now - gestureState.lastSeekMs > 55) {
+          const mirroredX = 1 - leftHand[8].x;
+          seekToNormalized(clamp(mirroredX, 0, 1));
+          gestureState.lastSeekMs = now;
+          gestureState.scrubbing = true;
+        }
       }
 
       async function tuneExposure(stream) {
@@ -137,6 +258,7 @@
 
           started = true;
           overlay.style.display = "none";
+          updateSongIndicator(getAudioState());
         } catch (error) {
           console.error("Failed to start instrument:", error);
           beginButton.disabled = false;
@@ -223,18 +345,68 @@
         ctx.restore();
 
         const { rightHand, leftHand } = selectHands(latestResults);
+        if (started) {
+          handleGesturePlayback(rightHand, leftHand);
+        }
+
         const metrics = updateSound(rightHand, leftHand);
         hudHz = metrics.hz;
         hudVolume = metrics.volume;
         hudHands = latestResults?.multiHandLandmarks?.length || 0;
+
         drawHud();
+        updateSongIndicator(metrics);
 
         requestAnimationFrame(frame);
       }
 
+      importAudioButton.addEventListener("click", () => {
+        if (!started) {
+          beginButton.textContent = "tap begin creating first";
+          return;
+        }
+        audioFileInput.value = "";
+        audioFileInput.click();
+      });
+
+      audioFileInput.addEventListener("change", async () => {
+        const file = audioFileInput.files?.[0];
+        if (!file) {
+          return;
+        }
+
+        importAudioButton.disabled = true;
+        importAudioButton.textContent = "loading...";
+
+        try {
+          await loadAudioFile(file);
+          updateSongIndicator(getAudioState());
+        } catch (error) {
+          console.error("Import failed", error);
+          songHint.textContent = "failed to load file";
+        } finally {
+          importAudioButton.disabled = false;
+          importAudioButton.textContent = "import mp4";
+        }
+      });
+
+      playToggleButton.addEventListener("click", async () => {
+        if (!started) {
+          return;
+        }
+
+        try {
+          await togglePlayback();
+          updateSongIndicator(getAudioState());
+        } catch (error) {
+          console.error("Play/pause failed", error);
+        }
+      });
+
       resize();
       window.addEventListener("resize", resize);
       beginButton.addEventListener("click", begin);
+      updateSongIndicator(getAudioState());
       requestAnimationFrame(frame);
     </script>
   </body>
