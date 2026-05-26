@@ -1,16 +1,18 @@
-const CELL_SIZE = 6;
+const CELL_SIZE = 4;
 
 const DIFF_THRESHOLD = 0.05;
 const CONTRAST_THRESHOLD = 0.07;
 const MOTION_THRESHOLD = 0.012;
 
-const DRAW_THRESHOLD = 0.19;
-const DOT_MIN = 0.52;
-const DOT_MAX = 2.55;
+const DRAW_THRESHOLD = 0.23;
+const DOT_MIN = 0.32;
+const DOT_MAX = 1.45;
+const HALFTONE_LEVELS = 6;
+const DOT_ALPHA = 0.84;
 
 const BG_LEARN_IDLE = 0.022;
 const BG_LEARN_ACTIVE = 0.002;
-const TEMPORAL_SMOOTH = 0.82;
+const TEMPORAL_SMOOTH = 0.84;
 const HAND_BOOST_GAIN = 0.42;
 
 const offscreen = document.createElement("canvas");
@@ -216,6 +218,7 @@ export function drawHalftone(ctx, video, canvasW, canvasH, results = null) {
 
   ctx.save();
   ctx.fillStyle = "#ffffff";
+  ctx.globalAlpha = DOT_ALPHA;
 
   for (let gy = 0; gy < rows; gy += 1) {
     for (let gx = 0; gx < cols; gx += 1) {
@@ -232,14 +235,17 @@ export function drawHalftone(ctx, video, canvasW, canvasH, results = null) {
         continue;
       }
 
-      const normalized = clamp((smoothSignal - DRAW_THRESHOLD) / (1 - DRAW_THRESHOLD), 0, 1);
-      const radius = DOT_MIN + normalized * (DOT_MAX - DOT_MIN);
-      const alpha = 0.14 + normalized * 0.82;
+      const normalized = clamp(
+        (smoothSignal - DRAW_THRESHOLD) / (1 - DRAW_THRESHOLD),
+        0,
+        1
+      );
+      const quantized = Math.round(normalized * HALFTONE_LEVELS) / HALFTONE_LEVELS;
+      const radius = DOT_MIN + quantized * (DOT_MAX - DOT_MIN);
 
       const centerX = gx * CELL_SIZE + CELL_SIZE * 0.5;
       const centerY = gy * CELL_SIZE + CELL_SIZE * 0.5;
 
-      ctx.globalAlpha = alpha;
       ctx.beginPath();
       ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
       ctx.fill();
