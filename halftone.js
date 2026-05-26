@@ -1,23 +1,18 @@
-const CELL_SIZE = 4;
+const CELL_SIZE = 3;
 
-const DIFF_THRESHOLD = 0.05;
-const CONTRAST_THRESHOLD = 0.07;
-const MOTION_THRESHOLD = 0.012;
+const DIFF_THRESHOLD = 0.04;
+const MOTION_THRESHOLD = 0.008;
+const DRAW_THRESHOLD = 0.16;
 
-const DRAW_THRESHOLD = 0.23;
-const DOT_MIN = 0.32;
-const DOT_MAX = 1.45;
-const HALFTONE_LEVELS = 6;
-const DOT_ALPHA = 0.72;
+const DOT_MIN = 0.2;
+const DOT_MAX = 0.95;
+const HALFTONE_LEVELS = 8;
+const DOT_ALPHA = 0.86;
 
-const LUMA_BLACK_POINT = 0.1;
-const LUMA_GAMMA = 1.35;
-const LUMA_WHITE_COMPRESS = 0.9;
-
-const BG_LEARN_IDLE = 0.022;
-const BG_LEARN_ACTIVE = 0.002;
-const TEMPORAL_SMOOTH = 0.84;
-const HAND_BOOST_GAIN = 0.42;
+const BG_LEARN_IDLE = 0.03;
+const BG_LEARN_ACTIVE = 0.0015;
+const TEMPORAL_SMOOTH = 0.89;
+const HAND_BOOST_GAIN = 0.55;
 
 const offscreen = document.createElement("canvas");
 const offCtx = offscreen.getContext("2d", { willReadFrequently: true });
@@ -57,7 +52,6 @@ function sampleCellLuma(frame, frameW, frameH, x, y, cellSize) {
   let brightnessSum = 0;
   let samples = 0;
 
-  // Subsample in-cell pixels for speed while preserving shape detail.
   for (let py = y; py < yEnd; py += 2) {
     for (let px = x; px < xEnd; px += 2) {
       const i = (py * frameW + px) * 4;
@@ -73,14 +67,7 @@ function sampleCellLuma(frame, frameW, frameH, x, y, cellSize) {
     return 0;
   }
 
-  const rawLuma = brightnessSum / samples;
-  const normalized = clamp(
-    (rawLuma - LUMA_BLACK_POINT) / (1 - LUMA_BLACK_POINT),
-    0,
-    1
-  );
-  const gammaMapped = Math.pow(normalized, LUMA_GAMMA);
-  return clamp(gammaMapped * LUMA_WHITE_COMPRESS, 0, 1);
+  return brightnessSum / samples;
 }
 
 function buildHandBoostGrid(cols, rows, results) {
@@ -95,24 +82,25 @@ function buildHandBoostGrid(cols, rows, results) {
       const cx = Math.round(point.x * (cols - 1));
       const cy = Math.round(point.y * (rows - 1));
 
-      for (let oy = -3; oy <= 3; oy += 1) {
+      for (let oy = -4; oy <= 4; oy += 1) {
         const gy = cy + oy;
         if (gy < 0 || gy >= rows) {
           continue;
         }
-        for (let ox = -3; ox <= 3; ox += 1) {
+
+        for (let ox = -4; ox <= 4; ox += 1) {
           const gx = cx + ox;
           if (gx < 0 || gx >= cols) {
             continue;
           }
 
           const dist = Math.hypot(ox, oy);
-          if (dist > 3.3) {
+          if (dist > 4.1) {
             continue;
           }
 
           const idx = gy * cols + gx;
-          const influence = Math.exp(-dist * 0.75);
+          const influence = Math.exp(-dist * 0.65);
           if (influence > boost[idx]) {
             boost[idx] = influence;
           }
@@ -131,27 +119,27 @@ function smoothSpatial(rawGrid, cols, rows) {
     for (let gx = 0; gx < cols; gx += 1) {
       const idx = gy * cols + gx;
 
-      let sum = rawGrid[idx] * 0.4;
+      let sum = rawGrid[idx] * 0.36;
 
       const north = gy > 0 ? idx - cols : idx;
       const south = gy < rows - 1 ? idx + cols : idx;
       const west = gx > 0 ? idx - 1 : idx;
       const east = gx < cols - 1 ? idx + 1 : idx;
 
-      sum += rawGrid[north] * 0.12;
-      sum += rawGrid[south] * 0.12;
-      sum += rawGrid[west] * 0.12;
-      sum += rawGrid[east] * 0.12;
+      sum += rawGrid[north] * 0.13;
+      sum += rawGrid[south] * 0.13;
+      sum += rawGrid[west] * 0.13;
+      sum += rawGrid[east] * 0.13;
 
       const northwest = gy > 0 && gx > 0 ? idx - cols - 1 : idx;
       const northeast = gy > 0 && gx < cols - 1 ? idx - cols + 1 : idx;
       const southwest = gy < rows - 1 && gx > 0 ? idx + cols - 1 : idx;
       const southeast = gy < rows - 1 && gx < cols - 1 ? idx + cols + 1 : idx;
 
-      sum += rawGrid[northwest] * 0.03;
-      sum += rawGrid[northeast] * 0.03;
-      sum += rawGrid[southwest] * 0.03;
-      sum += rawGrid[southeast] * 0.03;
+      sum += rawGrid[northwest] * 0.032;
+      sum += rawGrid[northeast] * 0.032;
+      sum += rawGrid[southwest] * 0.032;
+      sum += rawGrid[southeast] * 0.032;
 
       smoothed[idx] = sum;
     }
@@ -179,15 +167,12 @@ export function drawHalftone(ctx, video, canvasW, canvasH, results = null) {
 
   const currentLumaGrid = new Float32Array(cols * rows);
 
-  let globalSum = 0;
   for (let gy = 0; gy < rows; gy += 1) {
     for (let gx = 0; gx < cols; gx += 1) {
+      const idx = gy * cols + gx;
       const x = gx * CELL_SIZE;
       const y = gy * CELL_SIZE;
-      const idx = gy * cols + gx;
-      const luma = sampleCellLuma(frame, canvasW, canvasH, x, y, CELL_SIZE);
-      currentLumaGrid[idx] = luma;
-      globalSum += luma;
+      currentLumaGrid[idx] = sampleCellLuma(frame, canvasW, canvasH, x, y, CELL_SIZE);
     }
   }
 
@@ -198,9 +183,7 @@ export function drawHalftone(ctx, video, canvasW, canvasH, results = null) {
     initialized = true;
   }
 
-  const globalAverage = globalSum / (cols * rows || 1);
   const handBoostGrid = buildHandBoostGrid(cols, rows, results);
-
   const rawSignalGrid = new Float32Array(cols * rows);
 
   for (let idx = 0; idx < currentLumaGrid.length; idx += 1) {
@@ -210,17 +193,15 @@ export function drawHalftone(ctx, video, canvasW, canvasH, results = null) {
 
     const diffFromBackground = Math.abs(luma - background);
     const motion = Math.abs(luma - previous);
-    const contrast = Math.abs(luma - globalAverage);
 
     let signal =
-      (diffFromBackground - DIFF_THRESHOLD) * 7.0 +
-      (motion - MOTION_THRESHOLD) * 4.2 +
-      (contrast - CONTRAST_THRESHOLD) * 2.0;
+      Math.max(0, diffFromBackground - DIFF_THRESHOLD) * 8.4 +
+      Math.max(0, motion - MOTION_THRESHOLD) * 4.6;
 
     signal = clamp(signal + handBoostGrid[idx] * HAND_BOOST_GAIN, 0, 1);
     rawSignalGrid[idx] = signal;
 
-    const learnRate = signal < 0.09 ? BG_LEARN_IDLE : BG_LEARN_ACTIVE;
+    const learnRate = signal < 0.1 ? BG_LEARN_IDLE : BG_LEARN_ACTIVE;
     backgroundLumaGrid[idx] = background * (1 - learnRate) + luma * learnRate;
     previousLumaGrid[idx] = luma;
   }
@@ -234,9 +215,9 @@ export function drawHalftone(ctx, video, canvasW, canvasH, results = null) {
   for (let gy = 0; gy < rows; gy += 1) {
     for (let gx = 0; gx < cols; gx += 1) {
       const idx = gy * cols + gx;
-      const boosted = handBoostGrid[idx] > 0.12;
+      const boosted = handBoostGrid[idx] > 0.1;
+      const smoothing = boosted ? 0.62 : TEMPORAL_SMOOTH;
       const targetSignal = spatialSignalGrid[idx];
-      const smoothing = boosted ? 0.68 : TEMPORAL_SMOOTH;
 
       const smoothSignal =
         smoothedSignalGrid[idx] * smoothing + targetSignal * (1 - smoothing);
@@ -251,7 +232,8 @@ export function drawHalftone(ctx, video, canvasW, canvasH, results = null) {
         0,
         1
       );
-      const quantized = Math.round(normalized * HALFTONE_LEVELS) / HALFTONE_LEVELS;
+      const quantized =
+        Math.round(normalized * HALFTONE_LEVELS) / HALFTONE_LEVELS;
       const radius = DOT_MIN + quantized * (DOT_MAX - DOT_MIN);
 
       const centerX = gx * CELL_SIZE + CELL_SIZE * 0.5;
