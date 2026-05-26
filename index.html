@@ -45,6 +45,7 @@
       let hudHz = 0;
       let hudVolume = 0;
       let previousHudVolume = 0;
+      let hudHands = 0;
 
       function resize() {
         canvas.width = window.innerWidth;
@@ -102,28 +103,77 @@
         }
       }
 
+      function roundedRectPath(targetCtx, x, y, w, h, radius) {
+        const r = Math.min(radius, w * 0.5, h * 0.5);
+        targetCtx.beginPath();
+        targetCtx.moveTo(x + r, y);
+        targetCtx.lineTo(x + w - r, y);
+        targetCtx.quadraticCurveTo(x + w, y, x + w, y + r);
+        targetCtx.lineTo(x + w, y + h - r);
+        targetCtx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        targetCtx.lineTo(x + r, y + h);
+        targetCtx.quadraticCurveTo(x, y + h, x, y + h - r);
+        targetCtx.lineTo(x, y + r);
+        targetCtx.quadraticCurveTo(x, y, x + r, y);
+        targetCtx.closePath();
+      }
+
       function drawHud() {
         const volDelta = Math.abs(hudVolume - previousHudVolume);
         const volumeIsMoving = volDelta > 0.006;
+        const panelX = 14;
+        const panelY = 14;
+        const panelW = 320;
+        const panelH = 116;
 
         ctx.save();
         ctx.globalAlpha = 0.95;
-        ctx.fillStyle = "rgba(5, 10, 20, 0.5)";
-        ctx.fillRect(10, 10, 194, 44);
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+
+        roundedRectPath(ctx, panelX, panelY, panelW, panelH, 18);
+        ctx.fillStyle = "rgba(5, 10, 20, 0.34)";
+        ctx.fill();
+
+        roundedRectPath(ctx, panelX + 0.5, panelY + 0.5, panelW - 1, panelH - 1, 18);
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.22)";
         ctx.lineWidth = 1;
-        ctx.strokeRect(10.5, 10.5, 193, 43);
+        ctx.stroke();
 
-        ctx.font = '500 11px "Space Grotesk", sans-serif';
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.16)";
+        ctx.beginPath();
+        ctx.moveTo(panelX + 12, panelY + 36);
+        ctx.lineTo(panelX + panelW - 12, panelY + 36);
+        ctx.moveTo(panelX + panelW / 2, panelY + 42);
+        ctx.lineTo(panelX + panelW / 2, panelY + panelH - 14);
+        ctx.moveTo(panelX + 12, panelY + 90);
+        ctx.lineTo(panelX + panelW - 12, panelY + 90);
+        ctx.stroke();
+
         ctx.textBaseline = "top";
+        ctx.font = '500 10px "Space Grotesk", sans-serif';
+        ctx.fillStyle = "rgba(255, 255, 255, 0.64)";
+        ctx.fillText("HAND INSTRUMENT", panelX + 15, panelY + 13);
 
-        ctx.fillStyle = "rgba(64, 222, 255, 0.88)";
-        ctx.fillText(`hz ${hudHz.toFixed(1)}`, 20, 18);
+        ctx.fillStyle = "rgba(255, 255, 255, 0.58)";
+        ctx.fillText("HZ", panelX + 16, panelY + 45);
+        ctx.fillText("VOL", panelX + panelW / 2 + 10, panelY + 45);
 
-        ctx.fillStyle = volumeIsMoving ? "#ff5fc7" : "rgba(255, 255, 255, 0.88)";
-        ctx.fillText(`vol ${(hudVolume * 100).toFixed(0)}%`, 106, 18);
+        ctx.font = '600 30px "Space Grotesk", sans-serif';
+        ctx.fillStyle = "#2fb8ff";
+        ctx.fillText(hudHz.toFixed(1), panelX + 16, panelY + 54);
+
+        ctx.fillStyle = volumeIsMoving ? "#ff5fc7" : "rgba(255, 255, 255, 0.9)";
+        ctx.fillText(`${Math.round(hudVolume * 100)}%`, panelX + panelW / 2 + 10, panelY + 54);
+
+        ctx.font = '500 10px "Space Grotesk", sans-serif';
+        ctx.fillStyle = "rgba(255, 255, 255, 0.64)";
+        ctx.fillText(`HANDS ${hudHands}`, panelX + 16, panelY + 96);
+        ctx.fillText(
+          volumeIsMoving ? "VOL ACTIVE" : hudHands > 0 ? "TRACKING" : "WAITING",
+          panelX + panelW / 2 + 10,
+          panelY + 96
+        );
+
         ctx.restore();
-
         previousHudVolume = hudVolume;
       }
 
@@ -135,6 +185,10 @@
         ctx.fillStyle = "#050a14";
         ctx.fillRect(0, 0, w, h);
 
+        ctx.save();
+        ctx.translate(w, 0);
+        ctx.scale(-1, 1);
+
         if (video.readyState >= 2) {
           drawHalftone(ctx, video, w, h);
         }
@@ -143,10 +197,13 @@
           drawHands(ctx, latestResults, w, h);
         }
 
+        ctx.restore();
+
         const { rightHand, leftHand } = selectHands(latestResults);
         const metrics = updateSound(rightHand, leftHand);
         hudHz = metrics.hz;
         hudVolume = metrics.volume;
+        hudHands = latestResults?.multiHandLandmarks?.length || 0;
         drawHud();
 
         requestAnimationFrame(frame);
