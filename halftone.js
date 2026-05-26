@@ -8,7 +8,11 @@ const DRAW_THRESHOLD = 0.23;
 const DOT_MIN = 0.32;
 const DOT_MAX = 1.45;
 const HALFTONE_LEVELS = 6;
-const DOT_ALPHA = 0.84;
+const DOT_ALPHA = 0.72;
+
+const LUMA_BLACK_POINT = 0.1;
+const LUMA_GAMMA = 1.35;
+const LUMA_WHITE_COMPRESS = 0.9;
 
 const BG_LEARN_IDLE = 0.022;
 const BG_LEARN_ACTIVE = 0.002;
@@ -69,7 +73,14 @@ function sampleCellLuma(frame, frameW, frameH, x, y, cellSize) {
     return 0;
   }
 
-  return brightnessSum / samples;
+  const rawLuma = brightnessSum / samples;
+  const normalized = clamp(
+    (rawLuma - LUMA_BLACK_POINT) / (1 - LUMA_BLACK_POINT),
+    0,
+    1
+  );
+  const gammaMapped = Math.pow(normalized, LUMA_GAMMA);
+  return clamp(gammaMapped * LUMA_WHITE_COMPRESS, 0, 1);
 }
 
 function buildHandBoostGrid(cols, rows, results) {
