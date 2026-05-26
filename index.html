@@ -44,6 +44,7 @@
       let started = false;
       let hudHz = 0;
       let hudVolume = 0;
+      let previousHudVolume = 0;
 
       function resize() {
         canvas.width = window.innerWidth;
@@ -102,20 +103,28 @@
       }
 
       function drawHud() {
-        ctx.save();
-        ctx.globalAlpha = 0.9;
-        ctx.fillStyle = "rgba(5, 10, 20, 0.62)";
-        ctx.fillRect(10, 10, 168, 42);
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.28)";
-        ctx.lineWidth = 1;
-        ctx.strokeRect(10.5, 10.5, 167, 41);
+        const volDelta = Math.abs(hudVolume - previousHudVolume);
+        const volumeIsMoving = volDelta > 0.006;
 
-        ctx.fillStyle = "#ffffff";
-        ctx.font = '12px "Space Grotesk", monospace';
+        ctx.save();
+        ctx.globalAlpha = 0.95;
+        ctx.fillStyle = "rgba(5, 10, 20, 0.5)";
+        ctx.fillRect(10, 10, 194, 44);
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(10.5, 10.5, 193, 43);
+
+        ctx.font = '500 11px "Space Grotesk", sans-serif';
         ctx.textBaseline = "top";
+
+        ctx.fillStyle = "rgba(64, 222, 255, 0.88)";
         ctx.fillText(`hz ${hudHz.toFixed(1)}`, 20, 18);
-        ctx.fillText(`vol ${(hudVolume * 100).toFixed(0)}%`, 98, 18);
+
+        ctx.fillStyle = volumeIsMoving ? "#ff5fc7" : "rgba(255, 255, 255, 0.88)";
+        ctx.fillText(`vol ${(hudVolume * 100).toFixed(0)}%`, 106, 18);
         ctx.restore();
+
+        previousHudVolume = hudVolume;
       }
 
       function frame() {
