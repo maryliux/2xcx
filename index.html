@@ -164,55 +164,37 @@
         const volumeIsMoving = volDelta > 0.006;
         const panelX = 14;
         const panelY = 14;
-        const panelW = 320;
-        const panelH = 116;
+        const panelW = 232;
+        const panelH = 64;
 
         ctx.save();
-        ctx.globalAlpha = 0.95;
+        ctx.globalAlpha = 0.92;
 
-        roundedRectPath(ctx, panelX, panelY, panelW, panelH, 18);
-        ctx.fillStyle = "rgba(5, 10, 20, 0.34)";
+        roundedRectPath(ctx, panelX, panelY, panelW, panelH, 16);
+        ctx.fillStyle = "rgba(5, 10, 20, 0.28)";
         ctx.fill();
 
-        roundedRectPath(ctx, panelX + 0.5, panelY + 0.5, panelW - 1, panelH - 1, 18);
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.22)";
+        roundedRectPath(ctx, panelX + 0.5, panelY + 0.5, panelW - 1, panelH - 1, 16);
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.16)";
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.16)";
-        ctx.beginPath();
-        ctx.moveTo(panelX + 12, panelY + 36);
-        ctx.lineTo(panelX + panelW - 12, panelY + 36);
-        ctx.moveTo(panelX + panelW / 2, panelY + 42);
-        ctx.lineTo(panelX + panelW / 2, panelY + panelH - 14);
-        ctx.moveTo(panelX + 12, panelY + 90);
-        ctx.lineTo(panelX + panelW - 12, panelY + 90);
-        ctx.stroke();
-
         ctx.textBaseline = "top";
-        ctx.font = '500 10px "Space Grotesk", sans-serif';
-        ctx.fillStyle = "rgba(255, 255, 255, 0.64)";
-        ctx.fillText("HAND INSTRUMENT", panelX + 15, panelY + 13);
+        ctx.font = '500 9px "Space Grotesk", sans-serif';
+        ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+        ctx.fillText("HZ", panelX + 14, panelY + 12);
+        ctx.fillText("VOL", panelX + 126, panelY + 12);
 
-        ctx.fillStyle = "rgba(255, 255, 255, 0.58)";
-        ctx.fillText("HZ", panelX + 16, panelY + 45);
-        ctx.fillText("VOL", panelX + panelW / 2 + 10, panelY + 45);
-
-        ctx.font = '600 30px "Space Grotesk", sans-serif';
+        ctx.font = '600 22px "Space Grotesk", sans-serif';
         ctx.fillStyle = "#2fb8ff";
-        ctx.fillText(hudHz.toFixed(1), panelX + 16, panelY + 54);
+        ctx.fillText(hudHz.toFixed(1), panelX + 14, panelY + 23);
 
         ctx.fillStyle = volumeIsMoving ? "#ff5fc7" : "rgba(255, 255, 255, 0.9)";
-        ctx.fillText(`${Math.round(hudVolume * 100)}%`, panelX + panelW / 2 + 10, panelY + 54);
+        ctx.fillText(`${Math.round(hudVolume * 100)}%`, panelX + 126, panelY + 23);
 
-        ctx.font = '500 10px "Space Grotesk", sans-serif';
-        ctx.fillStyle = "rgba(255, 255, 255, 0.64)";
-        ctx.fillText(`HANDS ${hudHands}`, panelX + 16, panelY + 96);
-        ctx.fillText(
-          volumeIsMoving ? "VOL ACTIVE" : hudHands > 0 ? "TRACKING" : "WAITING",
-          panelX + panelW / 2 + 10,
-          panelY + 96
-        );
+        ctx.font = '500 9px "Space Grotesk", sans-serif';
+        ctx.fillStyle = "rgba(255, 255, 255, 0.48)";
+        ctx.fillText(`HANDS ${hudHands}`, panelX + panelW - 70, panelY + 47);
 
         ctx.restore();
         previousHudVolume = hudVolume;
@@ -231,7 +213,7 @@
         ctx.scale(-1, 1);
 
         if (video.readyState >= 2) {
-          drawHalftone(ctx, video, w, h, latestResults);
+          drawHalftone(ctx, video, w, h);
         }
 
         if (latestResults) {

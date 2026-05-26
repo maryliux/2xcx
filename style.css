@@ -35,7 +35,7 @@ video {
   inset: 0;
   display: grid;
   place-items: center;
-  background: radial-gradient(circle at center, rgba(255, 255, 255, 0.02), rgba(5, 10, 20, 0.92));
+  background: rgba(5, 10, 20, 0.9);
   user-select: none;
 }
 
@@ -43,9 +43,9 @@ video {
   content: "";
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.26) 0.8px, transparent 0.9px);
-  background-size: 10px 10px;
-  opacity: 0.13;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.18) 0.6px, transparent 0.8px);
+  background-size: 12px 12px;
+  opacity: 0.06;
   pointer-events: none;
 }
 
@@ -54,10 +54,10 @@ video {
   z-index: 1;
   display: grid;
   justify-items: center;
-  gap: 14px;
-  padding: 28px 30px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(5, 10, 20, 0.82);
+  gap: 12px;
+  padding: 24px 26px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(5, 10, 20, 0.72);
   backdrop-filter: blur(2px);
 }
 
