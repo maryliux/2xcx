@@ -3,287 +3,132 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MediaPipe Hand Instrument</title>
-    <style>
-      :root {
-        color-scheme: dark;
-      }
-
-      body {
-        margin: 0;
-        font-family: Arial, Helvetica, sans-serif;
-        background: #111;
-        color: #f5f5f5;
-        display: grid;
-        place-items: center;
-        min-height: 100vh;
-        padding: 16px;
-      }
-
-      .app {
-        width: min(960px, 100%);
-        display: grid;
-        gap: 12px;
-      }
-
-      .controls {
-        display: flex;
-        gap: 12px;
-        align-items: center;
-        flex-wrap: wrap;
-      }
-
-      button {
-        border: 0;
-        border-radius: 8px;
-        padding: 10px 14px;
-        font-size: 15px;
-        font-weight: 600;
-        background: #2f8cff;
-        color: #fff;
-        cursor: pointer;
-      }
-
-      button:disabled {
-        background: #44536a;
-        cursor: not-allowed;
-      }
-
-      .hint {
-        color: #bfc9d7;
-        font-size: 14px;
-      }
-
-      .canvas-wrap {
-        position: relative;
-        border: 1px solid #2c2c2c;
-        border-radius: 12px;
-        overflow: hidden;
-        background: #000;
-      }
-
-      canvas {
-        width: 100%;
-        display: block;
-      }
-    </style>
+    <title>Hand Halftone Instrument</title>
+    <link rel="stylesheet" href="./style.css" />
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"
+    ></script>
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"
+    ></script>
+    <script
+      type="module"
+      src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"
+    ></script>
   </head>
   <body>
-    <main class="app">
-      <div class="controls">
-        <button id="start-btn">Start Instrument</button>
-        <span class="hint">
-          Wrist Y controls pitch (100Hz-800Hz). Open hand = sound, closed fist =
-          silence.
-        </span>
-      </div>
-      <div class="canvas-wrap">
-        <canvas id="output" width="960" height="720"></canvas>
-      </div>
-    </main>
+    <canvas id="main"></canvas>
+    <video id="feed" playsinline></video>
+    <div id="overlay">touch to begin</div>
 
-    <video id="webcam" playsinline style="display: none"></video>
+    <script type="module">
+      import { drawHalftone } from "./halftone.js";
+      import { drawHands, initTracker } from "./hand-tracker.js";
+      import { initAudio, updateSound } from "./sound-engine.js";
 
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tone@latest/build/Tone.js"></script>
-
-    <script>
-      const MIN_FREQ = 100;
-      const MAX_FREQ = 800;
-      const MAX_HANDS = 2;
-      const OPEN_HAND_THRESHOLD = 1.2;
-      const SILENT_GAIN = 0;
-      const FULL_GAIN = 0.9;
-
-      const startButton = document.getElementById("start-btn");
-      const video = document.getElementById("webcam");
-      const canvas = document.getElementById("output");
+      const canvas = document.getElementById("main");
       const ctx = canvas.getContext("2d");
+      const video = document.getElementById("feed");
+      const overlay = document.getElementById("overlay");
 
-      let camera = null;
-      let running = false;
-      let voices = [];
+      let latestResults = null;
+      let started = false;
+      let hudHz = 0;
+      let hudVolume = 0;
 
-      function clamp(value, min, max) {
-        return Math.min(max, Math.max(min, value));
+      function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
       }
 
-      function toFrequency(y) {
-        const normalized = 1 - clamp(y, 0, 1);
-        return MIN_FREQ + normalized * (MAX_FREQ - MIN_FREQ);
-      }
+      function selectHands(results) {
+        const landmarksList = results?.multiHandLandmarks || [];
+        const handednessList = results?.multiHandedness || [];
+        let rightHand = null;
+        let leftHand = null;
 
-      function distance(a, b) {
-        const dx = a.x - b.x;
-        const dy = a.y - b.y;
-        const dz = (a.z || 0) - (b.z || 0);
-        return Math.hypot(dx, dy, dz);
-      }
-
-      function palmCenter(landmarks) {
-        const palmIndices = [0, 5, 9, 13, 17];
-        const sum = palmIndices.reduce(
-          (acc, index) => {
-            const point = landmarks[index];
-            acc.x += point.x;
-            acc.y += point.y;
-            acc.z += point.z || 0;
-            return acc;
-          },
-          { x: 0, y: 0, z: 0 }
-        );
-
-        return {
-          x: sum.x / palmIndices.length,
-          y: sum.y / palmIndices.length,
-          z: sum.z / palmIndices.length,
-        };
-      }
-
-      function isOpenHand(landmarks) {
-        const center = palmCenter(landmarks);
-        const tipIndices = [4, 8, 12, 16, 20];
-        const avgTipDistance =
-          tipIndices.reduce((acc, index) => acc + distance(landmarks[index], center), 0) /
-          tipIndices.length;
-        const palmWidth = Math.max(distance(landmarks[5], landmarks[17]), 0.0001);
-        const openness = avgTipDistance / palmWidth;
-        return openness > OPEN_HAND_THRESHOLD;
-      }
-
-      function createVoice() {
-        const gain = new Tone.Gain(0).toDestination();
-        const osc = new Tone.Oscillator({
-          type: "sine",
-          frequency: 220,
-          volume: -8,
-        }).connect(gain);
-        osc.start();
-        return { osc, gain };
-      }
-
-      function setupAudio() {
-        if (voices.length) {
-          return;
-        }
-        voices = Array.from({ length: MAX_HANDS }, () => createVoice());
-      }
-
-      function assignVoiceIndex(handedness, used) {
-        const label = handedness && handedness.label ? handedness.label : "";
-        const preferred = label === "Left" ? 0 : label === "Right" ? 1 : null;
-        if (preferred !== null && !used.has(preferred)) {
-          return preferred;
-        }
-        for (let i = 0; i < MAX_HANDS; i += 1) {
-          if (!used.has(i)) {
-            return i;
-          }
-        }
-        return null;
-      }
-
-      function silenceUndetectedVoices(usedIndices) {
-        voices.forEach((voice, index) => {
-          if (!usedIndices.has(index)) {
-            voice.gain.gain.rampTo(SILENT_GAIN, 0.1);
+        landmarksList.forEach((landmarks, index) => {
+          const label = handednessList[index]?.label;
+          if (label === "Right") {
+            rightHand = landmarks;
+          } else if (label === "Left") {
+            leftHand = landmarks;
+          } else if (!rightHand) {
+            rightHand = landmarks;
+          } else if (!leftHand) {
+            leftHand = landmarks;
           }
         });
+
+        return { rightHand, leftHand };
       }
 
-      function onResults(results) {
-        if (!results.image) {
+      async function begin() {
+        if (started) {
           return;
         }
 
-        if (canvas.width !== results.image.width || canvas.height !== results.image.height) {
-          canvas.width = results.image.width;
-          canvas.height = results.image.height;
-        }
+        try {
+          await globalThis.Tone.start();
+          await initAudio();
 
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          video.srcObject = stream;
+          await video.play();
+
+          await initTracker(video, (results) => {
+            latestResults = results;
+          });
+
+          started = true;
+          overlay.style.display = "none";
+        } catch (error) {
+          console.error("Failed to start instrument:", error);
+          overlay.textContent = "camera/audio blocked";
+        }
+      }
+
+      function drawHud() {
         ctx.save();
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-
-        const usedVoiceIndices = new Set();
-        const handsLandmarks = results.multiHandLandmarks || [];
-        const handedness = results.multiHandedness || [];
-
-        handsLandmarks.forEach((landmarks, handIndex) => {
-          const voiceIndex = assignVoiceIndex(handedness[handIndex], usedVoiceIndices);
-          if (voiceIndex === null) {
-            return;
-          }
-          usedVoiceIndices.add(voiceIndex);
-
-          const voice = voices[voiceIndex];
-          const wrist = landmarks[0];
-          const targetFreq = toFrequency(wrist.y);
-          const volumeOn = isOpenHand(landmarks);
-
-          voice.osc.frequency.rampTo(targetFreq, 0.05);
-          voice.gain.gain.rampTo(volumeOn ? FULL_GAIN : SILENT_GAIN, 0.08);
-
-          drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {
-            color: "#4ef2ff",
-            lineWidth: 3,
-          });
-          drawLandmarks(ctx, landmarks, {
-            color: "#ffb347",
-            lineWidth: 1,
-            radius: 3,
-          });
-        });
-
-        silenceUndetectedVoices(usedVoiceIndices);
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "13px monospace";
+        ctx.textBaseline = "top";
+        ctx.fillText(`Hz: ${hudHz.toFixed(1)}`, 12, 12);
+        ctx.fillText(`Volume: ${(hudVolume * 100).toFixed(0)}%`, 12, 30);
         ctx.restore();
       }
 
-      async function start() {
-        if (running) {
-          return;
+      function frame() {
+        const w = canvas.width;
+        const h = canvas.height;
+
+        ctx.clearRect(0, 0, w, h);
+        ctx.fillStyle = "#050a14";
+        ctx.fillRect(0, 0, w, h);
+
+        if (video.readyState >= 2) {
+          drawHalftone(ctx, video, w, h);
         }
 
-        startButton.disabled = true;
-        startButton.textContent = "Starting...";
-
-        try {
-          await Tone.start();
-          setupAudio();
-
-          const hands = new Hands({
-            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
-          });
-          hands.setOptions({
-            maxNumHands: MAX_HANDS,
-            modelComplexity: 1,
-            minDetectionConfidence: 0.65,
-            minTrackingConfidence: 0.65,
-          });
-          hands.onResults(onResults);
-
-          camera = new Camera(video, {
-            onFrame: async () => {
-              await hands.send({ image: video });
-            },
-            width: 960,
-            height: 720,
-          });
-
-          await camera.start();
-          running = true;
-          startButton.textContent = "Instrument Running";
-        } catch (error) {
-          console.error("Failed to start instrument", error);
-          startButton.disabled = false;
-          startButton.textContent = "Start Instrument";
-          alert("Could not start webcam/audio. Check permissions and try again.");
+        if (latestResults) {
+          drawHands(ctx, latestResults, w, h);
         }
+
+        const { rightHand, leftHand } = selectHands(latestResults);
+        const metrics = updateSound(rightHand, leftHand);
+        hudHz = metrics.hz;
+        hudVolume = metrics.volume;
+        drawHud();
+
+        requestAnimationFrame(frame);
       }
 
-      startButton.addEventListener("click", start);
+      resize();
+      window.addEventListener("resize", resize);
+      canvas.addEventListener("click", begin);
+      requestAnimationFrame(frame);
     </script>
   </body>
 </html>
