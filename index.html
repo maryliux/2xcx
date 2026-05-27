@@ -268,6 +268,40 @@
         }
       }
 
+      async function tuneExposure(stream) {
+        const [track] = stream.getVideoTracks();
+        if (!track || typeof track.getCapabilities !== "function") {
+          return;
+        }
+
+        const caps = track.getCapabilities();
+        const advanced = {};
+
+        if (Array.isArray(caps.exposureMode) && caps.exposureMode.includes("continuous")) {
+          advanced.exposureMode = "continuous";
+        }
+
+        const exposure = caps.exposureCompensation;
+        if (exposure && Number.isFinite(exposure.min) && Number.isFinite(exposure.max)) {
+          let target = 0;
+          if (exposure.min < 0) {
+            target = -0.6;
+          }
+          target = Math.min(exposure.max, Math.max(exposure.min, target));
+          advanced.exposureCompensation = target;
+        }
+
+        if (!Object.keys(advanced).length) {
+          return;
+        }
+
+        try {
+          await track.applyConstraints({ advanced: [advanced] });
+        } catch (constraintError) {
+          console.debug("Exposure constraints unavailable:", constraintError);
+        }
+      }
+
       async function begin() {
         if (started) {
           return;
@@ -279,6 +313,17 @@
         try {
           await globalThis.Tone.start();
           await initAudio();
+
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: "user",
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
+          });
+          await tuneExposure(stream);
+          video.srcObject = stream;
+          await video.play();
 
           await initTracker(video, (results) => {
             latestResults = results;
