@@ -7,19 +7,16 @@ let reverb = null;
 let gainNode = null;
 let pitchShift = null;
 
-let player = null;
-let playerObjectUrl = null;
-let loadedTrackName = "no track loaded";
-let trackDuration = 0;
-let startedAt = null;
-let seekOffset = 0;
-let isPlaying = false;
-let lastGesturePlaybackState = null;
+let mediaElement = null;
+let mediaSource = null;
+let mediaObjectUrl = null;
+let loadedTrackName = "awaiting mp3 upload";
 
 let initialized = false;
 let lastHz = 220;
 let lastVolume = 0;
 let smoothedPitch = 0;
+let lastGesturePlaybackState = null;
 
 const TIP_INDICES = [4, 8, 12, 16, 20];
 const RIGHT_CLOSED_OPENNESS = 0.09;
@@ -70,102 +67,80 @@ function tipControl(hand, index) {
   return 1 - clamp(hand[index].y, 0, 1);
 }
 
-function disposePlayer() {
-  if (player) {
-    try {
-      player.stop();
-    } catch {
-      // No-op: player may already be stopped/disposed.
-    }
-    player.dispose();
-    player = null;
-  }
-
-  if (playerObjectUrl) {
-    URL.revokeObjectURL(playerObjectUrl);
-    playerObjectUrl = null;
-  }
-
-  trackDuration = 0;
-  startedAt = null;
-  seekOffset = 0;
-  isPlaying = false;
-  lastGesturePlaybackState = null;
-}
-
-function stopPlayerNow() {
-  if (player && player.state === "started") {
-    player.stop();
+function disposeMediaSource() {
+  if (mediaSource) {
+    mediaSource.disconnect();
+    mediaSource.dispose();
+    mediaSource = null;
   }
 }
 
-function getTrackedCurrentTime() {
-  if (!player || trackDuration <= 0) {
+function revokeMediaObjectUrl() {
+  if (mediaObjectUrl) {
+    URL.revokeObjectURL(mediaObjectUrl);
+    mediaObjectUrl = null;
+  }
+}
+
+function getDuration() {
+  if (!mediaElement || !Number.isFinite(mediaElement.duration) || mediaElement.duration <= 0) {
     return 0;
   }
-
-  if (!isPlaying || startedAt === null) {
-    return clamp(seekOffset, 0, trackDuration);
-  }
-
-  const current = seekOffset + (ToneLib.now() - startedAt);
-  if (current >= trackDuration) {
-    stopPlayerNow();
-    startedAt = null;
-    seekOffset = 0;
-    isPlaying = false;
-    lastGesturePlaybackState = false;
-    return 0;
-  }
-
-  return clamp(current, 0, trackDuration);
+  return mediaElement.duration;
 }
 
-function startFromTime(time) {
-  if (!player || trackDuration <= 0) {
+function getCurrentTime() {
+  const duration = getDuration();
+  if (!mediaElement || !Number.isFinite(mediaElement.currentTime) || duration <= 0) {
+    return 0;
+  }
+  return clamp(mediaElement.currentTime, 0, duration);
+}
+
+async function waitForDuration(element) {
+  if (Number.isFinite(element.duration) && element.duration > 0) {
     return;
   }
 
-  const target = clamp(time, 0, Math.max(trackDuration - 0.001, 0));
-  stopPlayerNow();
-  player.start(ToneLib.now(), target);
-  seekOffset = target;
-  startedAt = ToneLib.now();
-  isPlaying = true;
-  lastGesturePlaybackState = true;
-}
+  await new Promise((resolve) => {
+    const onMaybeReady = () => {
+      if (Number.isFinite(element.duration) && element.duration > 0) {
+        cleanup();
+        resolve();
+      }
+    };
 
-function pauseAtCurrentTime() {
-  if (!player) {
-    return;
-  }
+    const onTimeout = () => {
+      cleanup();
+      resolve();
+    };
 
-  const current = getTrackedCurrentTime();
-  stopPlayerNow();
-  seekOffset = current;
-  startedAt = null;
-  isPlaying = false;
-  lastGesturePlaybackState = false;
-}
+    const cleanup = () => {
+      clearTimeout(timer);
+      element.removeEventListener("durationchange", onMaybeReady);
+      element.removeEventListener("loadeddata", onMaybeReady);
+      element.removeEventListener("canplay", onMaybeReady);
+    };
 
-export function formatTime(seconds) {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60)
-    .toString()
-    .padStart(2, "0");
-  return m + ":" + s;
+    const timer = setTimeout(onTimeout, 1400);
+    element.addEventListener("durationchange", onMaybeReady);
+    element.addEventListener("loadeddata", onMaybeReady);
+    element.addEventListener("canplay", onMaybeReady);
+  });
 }
 
 export function getAudioState() {
-  const currentTime = getTrackedCurrentTime();
+  const hasTrack = Boolean(mediaElement);
+  const duration = getDuration();
+  const currentTime = getCurrentTime();
 
   return {
-    hasTrack: Boolean(player),
+    hasTrack,
     fileName: loadedTrackName,
-    isPlaying,
+    isPlaying: hasTrack ? !mediaElement.paused : false,
     currentTime,
-    duration: trackDuration,
-    playbackRate: 1,
+    duration,
+    playbackRate: hasTrack ? mediaElement.playbackRate : 1,
     pitch: smoothedPitch,
   };
 }
@@ -216,44 +191,70 @@ export async function loadAudioFile(file) {
     await initAudio();
   }
 
-  disposePlayer();
+  if (mediaElement) {
+    mediaElement.pause();
+  }
+  disposeMediaSource();
+  revokeMediaObjectUrl();
 
-  playerObjectUrl = URL.createObjectURL(file);
-  loadedTrackName = file.name || "uploaded track";
+  mediaObjectUrl = URL.createObjectURL(file);
+  const element = new Audio();
+  element.src = mediaObjectUrl;
+  element.preload = "auto";
+  element.crossOrigin = "anonymous";
+  element.loop = false;
+  element.playsInline = true;
+  element.playbackRate = 1;
 
-  player = new ToneLib.Player({
-    autostart: false,
-    loop: false,
+  await new Promise((resolve, reject) => {
+    const onLoaded = () => {
+      cleanup();
+      resolve();
+    };
+
+    const onError = () => {
+      cleanup();
+      reject(new Error("Failed to load this MP3 file."));
+    };
+
+    const cleanup = () => {
+      element.removeEventListener("loadedmetadata", onLoaded);
+      element.removeEventListener("error", onError);
+    };
+
+    element.addEventListener("loadedmetadata", onLoaded, { once: true });
+    element.addEventListener("error", onError, { once: true });
   });
-  player.connect(pitchShift);
 
-  await player.load(playerObjectUrl);
+  await waitForDuration(element);
 
-  trackDuration = Number.isFinite(player.buffer.duration) ? player.buffer.duration : 0;
-  seekOffset = 0;
-  startedAt = null;
-  isPlaying = false;
+  mediaElement = element;
+  mediaSource = new ToneLib.MediaElementSource(mediaElement);
+  mediaSource.connect(pitchShift);
+  loadedTrackName = file.name || "uploaded track";
+  smoothedPitch = 0;
   lastGesturePlaybackState = null;
 
   return getAudioState();
 }
 
 export async function togglePlayback() {
-  if (!player) {
+  if (!mediaElement) {
     return getAudioState();
   }
 
-  if (!isPlaying) {
-    startFromTime(seekOffset);
+  if (mediaElement.paused) {
+    await mediaElement.play();
   } else {
-    pauseAtCurrentTime();
+    mediaElement.pause();
   }
 
+  lastGesturePlaybackState = !mediaElement.paused;
   return getAudioState();
 }
 
 export async function setPlaybackFromGesture(shouldPlay) {
-  if (!player) {
+  if (!mediaElement) {
     return getAudioState();
   }
 
@@ -261,35 +262,11 @@ export async function setPlaybackFromGesture(shouldPlay) {
     return getAudioState();
   }
 
-  if (shouldPlay) {
-    startFromTime(seekOffset);
-  } else {
-    pauseAtCurrentTime();
-  }
-
-  return getAudioState();
-}
-
-export function seekToTime(seconds, options = {}) {
-  if (!player) {
-    return getAudioState();
-  }
-
-  const target = clamp(seconds, 0, trackDuration);
-  const shouldResume = options.forceStart ? true : isPlaying;
-
-  stopPlayerNow();
-  seekOffset = target;
-
-  if (shouldResume) {
-    player.start(ToneLib.now(), target);
-    startedAt = ToneLib.now();
-    isPlaying = true;
-    lastGesturePlaybackState = true;
-  } else {
-    startedAt = null;
-    isPlaying = false;
-    lastGesturePlaybackState = false;
+  lastGesturePlaybackState = shouldPlay;
+  if (shouldPlay && mediaElement.paused) {
+    await mediaElement.play();
+  } else if (!shouldPlay && !mediaElement.paused) {
+    mediaElement.pause();
   }
 
   return getAudioState();
@@ -304,6 +281,10 @@ export function updateSound(rightHand, leftHand) {
       volume: lastVolume,
       ...getAudioState(),
     };
+  }
+
+  if (mediaElement && mediaElement.playbackRate !== 1) {
+    mediaElement.playbackRate = 1;
   }
 
   if (hasRequiredLandmarks(rightHand, [0, 4, 8, 12, 16, 20])) {
