@@ -149,17 +149,11 @@ function pauseAtCurrentTime() {
 }
 
 export function formatTime(seconds) {
-  const total = Math.max(0, Math.floor(Number.isFinite(seconds) ? seconds : 0));
-  const h = Math.floor(total / 3600)
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60)
     .toString()
     .padStart(2, "0");
-  const m = Math.floor((total % 3600) / 60)
-    .toString()
-    .padStart(2, "0");
-  const s = Math.floor(total % 60)
-    .toString()
-    .padStart(2, "0");
-  return `${h}:${m}:${s}`;
+  return m + ":" + s;
 }
 
 export function getAudioState() {
