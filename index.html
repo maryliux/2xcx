@@ -36,12 +36,16 @@
         <button id="play-toggle-btn" type="button" disabled>play</button>
       </div>
       <p id="song-title">no track loaded</p>
-      <p id="upload-status">awaiting mp3 upload</p>
       <div id="song-progress-track">
         <div id="song-progress-fill"></div>
+        <div id="song-progress-handle"></div>
       </div>
-      <p id="song-time">00:00 / 00:00</p>
-      <p id="song-hint">left hand open/play, closed/pause · right fingers control synth</p>
+      <div id="song-time-row">
+        <span id="song-current-time">0:00</span>
+        <span id="song-total-time">0:00</span>
+      </div>
+      <p id="upload-status">awaiting mp3 upload</p>
+      <p id="song-hint">left hand open = play, closed = pause · right fingers control synth</p>
     </div>
 
     <input
@@ -55,9 +59,11 @@
       import { drawHalftone } from "./halftone.js";
       import { drawHands, initTracker } from "./hand-tracker.js";
       import {
+        formatTime,
         getAudioState,
         initAudio,
         loadAudioFile,
+        seekToTime,
         setPlaybackFromGesture,
         togglePlayback,
         updateSound,
@@ -73,9 +79,12 @@
       const playToggleButton = document.getElementById("play-toggle-btn");
       const audioFileInput = document.getElementById("audio-file-input");
       const songTitle = document.getElementById("song-title");
-      const songTime = document.getElementById("song-time");
       const songHint = document.getElementById("song-hint");
+      const songProgressTrack = document.getElementById("song-progress-track");
       const songProgressFill = document.getElementById("song-progress-fill");
+      const songProgressHandle = document.getElementById("song-progress-handle");
+      const songCurrentTime = document.getElementById("song-current-time");
+      const songTotalTime = document.getElementById("song-total-time");
       const uploadStatus = document.getElementById("upload-status");
 
       let latestResults = null;
@@ -84,8 +93,18 @@
       let hudVolume = 0;
       let previousHudVolume = 0;
       let hudHands = 0;
-      let uploadMessage = "awaiting mp3 upload";
-      let latestUploadedFileName = "";
+
+      let selectedFileName = "";
+      const uploadState = {
+        mode: "idle",
+        successUntilMs: 0,
+      };
+
+      const scrubState = {
+        isDragging: false,
+        ratio: 0,
+        pointerId: null,
+      };
 
       const leftHandGestureState = {
         playbackState: null,
@@ -139,6 +158,88 @@
         return tipAverage / palmWidth;
       }
 
+      function ratioFromPointerEvent(event) {
+        const rect = songProgressTrack.getBoundingClientRect();
+        if (rect.width <= 0) {
+          return 0;
+        }
+        return clamp((event.clientX - rect.left) / rect.width, 0, 1);
+      }
+
+      function updateUploadStatus(nowMs) {
+        if (uploadState.mode === "uploading") {
+          uploadStatus.textContent = "uploading...";
+          uploadStatus.style.color = "rgba(255, 255, 255, 0.82)";
+          return;
+        }
+
+        if (uploadState.mode === "failed") {
+          uploadStatus.textContent = "upload failed";
+          uploadStatus.style.color = "#ff6b7d";
+          return;
+        }
+
+        if (uploadState.mode === "success" && nowMs < uploadState.successUntilMs) {
+          uploadStatus.textContent = "upload successful";
+          uploadStatus.style.color = "#6fff9d";
+          return;
+        }
+
+        if (selectedFileName) {
+          uploadState.mode = "ready";
+          uploadStatus.textContent = selectedFileName;
+          uploadStatus.style.color = "rgba(255, 255, 255, 0.88)";
+          return;
+        }
+
+        uploadStatus.textContent = "awaiting mp3 upload";
+        uploadStatus.style.color = "rgba(255, 255, 255, 0.56)";
+      }
+
+      function updateSongIndicator(audioState) {
+        const hasTrack = Boolean(audioState?.hasTrack);
+        const duration = Number.isFinite(audioState?.duration) ? audioState.duration : 0;
+        const currentTime = Number.isFinite(audioState?.currentTime) ? audioState.currentTime : 0;
+        const baseProgress = duration > 0 ? clamp(currentTime / duration, 0, 1) : 0;
+        const displayProgress = scrubState.isDragging ? scrubState.ratio : baseProgress;
+        const displayCurrent = scrubState.isDragging && duration > 0 ? duration * scrubState.ratio : currentTime;
+
+        songTitle.textContent = selectedFileName || audioState?.fileName || "no track loaded";
+        songCurrentTime.textContent = formatTime(displayCurrent);
+        songTotalTime.textContent = formatTime(duration);
+
+        songProgressFill.style.width = `${displayProgress * 100}%`;
+        songProgressHandle.style.left = `${displayProgress * 100}%`;
+
+        playToggleButton.disabled = !hasTrack;
+        playToggleButton.textContent = audioState?.isPlaying ? "pause" : "play";
+        songHint.textContent = "left hand open = play, closed = pause · right fingers control synth";
+
+        updateUploadStatus(performance.now());
+      }
+
+      function selectHands(results) {
+        const landmarksList = results?.multiHandLandmarks || [];
+        const handednessList = results?.multiHandedness || [];
+        let rightHand = null;
+        let leftHand = null;
+
+        landmarksList.forEach((landmarks, index) => {
+          const label = handednessList[index]?.label;
+          if (label === "Right") {
+            rightHand = landmarks;
+          } else if (label === "Left") {
+            leftHand = landmarks;
+          } else if (!rightHand) {
+            rightHand = landmarks;
+          } else if (!leftHand) {
+            leftHand = landmarks;
+          }
+        });
+
+        return { rightHand, leftHand };
+      }
+
       function handleLeftHandPlayback(leftHand) {
         if (!leftHand) {
           return;
@@ -165,56 +266,6 @@
             console.error("Left-hand pause gesture failed", error);
           });
         }
-      }
-
-      function formatTime(seconds) {
-        if (!Number.isFinite(seconds) || seconds <= 0) {
-          return "00:00";
-        }
-
-        const whole = Math.floor(seconds);
-        const mins = Math.floor(whole / 60);
-        const secs = whole % 60;
-        return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-      }
-
-      function updateSongIndicator(audioState) {
-        const hasTrack = Boolean(audioState?.hasTrack);
-        const duration = Number.isFinite(audioState?.duration) ? audioState.duration : 0;
-        const currentTime = Number.isFinite(audioState?.currentTime) ? audioState.currentTime : 0;
-        const progress = duration > 0 ? clamp(currentTime / duration, 0, 1) : 0;
-
-        const displayName = audioState?.fileName || latestUploadedFileName || "awaiting mp3 upload";
-        songTitle.textContent = displayName;
-        songTime.textContent = `${formatTime(currentTime)} / ${formatTime(duration)}`;
-        songProgressFill.style.width = `${progress * 100}%`;
-
-        playToggleButton.disabled = !hasTrack;
-        playToggleButton.textContent = audioState?.isPlaying ? "pause" : "play";
-        songHint.textContent = "left hand open = play, closed = pause · right fingers control synth";
-        uploadStatus.textContent = latestUploadedFileName ? `uploaded file: ${latestUploadedFileName}` : uploadMessage;
-      }
-
-      function selectHands(results) {
-        const landmarksList = results?.multiHandLandmarks || [];
-        const handednessList = results?.multiHandedness || [];
-        let rightHand = null;
-        let leftHand = null;
-
-        landmarksList.forEach((landmarks, index) => {
-          const label = handednessList[index]?.label;
-          if (label === "Right") {
-            rightHand = landmarks;
-          } else if (label === "Left") {
-            leftHand = landmarks;
-          } else if (!rightHand) {
-            rightHand = landmarks;
-          } else if (!leftHand) {
-            leftHand = landmarks;
-          }
-        });
-
-        return { rightHand, leftHand };
       }
 
       async function tuneExposure(stream) {
@@ -397,19 +448,21 @@
           return;
         }
 
+        selectedFileName = file.name;
+        uploadState.mode = "uploading";
+
         importAudioButton.disabled = true;
         importAudioButton.textContent = "loading...";
-        uploadMessage = "uploading mp3...";
         updateSongIndicator(getAudioState());
 
         try {
           await loadAudioFile(file);
-          latestUploadedFileName = file.name;
-          uploadMessage = `uploaded file: ${file.name}`;
+          uploadState.mode = "success";
+          uploadState.successUntilMs = performance.now() + 2000;
           updateSongIndicator(getAudioState());
         } catch (error) {
           console.error("Import failed", error);
-          uploadMessage = "upload failed";
+          uploadState.mode = "failed";
           songHint.textContent = "failed to load file";
         } finally {
           importAudioButton.disabled = false;
@@ -429,6 +482,61 @@
           console.error("Play/pause failed", error);
         }
       });
+
+      songProgressTrack.addEventListener("pointerdown", (event) => {
+        const audioState = getAudioState();
+        if (!audioState.hasTrack || audioState.duration <= 0) {
+          return;
+        }
+
+        scrubState.isDragging = true;
+        scrubState.pointerId = event.pointerId;
+        scrubState.ratio = ratioFromPointerEvent(event);
+        songProgressTrack.setPointerCapture(event.pointerId);
+
+        // Immediate jump on pointer down.
+        seekToTime(scrubState.ratio * audioState.duration, { forceStart: true });
+        updateSongIndicator(getAudioState());
+      });
+
+      songProgressTrack.addEventListener("pointermove", (event) => {
+        if (!scrubState.isDragging || scrubState.pointerId !== event.pointerId) {
+          return;
+        }
+
+        scrubState.ratio = ratioFromPointerEvent(event);
+        updateSongIndicator(getAudioState());
+      });
+
+      const finishScrub = (event) => {
+        if (!scrubState.isDragging) {
+          return;
+        }
+        if (scrubState.pointerId !== null && event.pointerId !== scrubState.pointerId) {
+          return;
+        }
+
+        const audioState = getAudioState();
+        scrubState.ratio = ratioFromPointerEvent(event);
+        scrubState.isDragging = false;
+
+        if (scrubState.pointerId !== null) {
+          try {
+            songProgressTrack.releasePointerCapture(scrubState.pointerId);
+          } catch {
+            // Ignore capture release errors.
+          }
+        }
+        scrubState.pointerId = null;
+
+        if (audioState.duration > 0) {
+          seekToTime(scrubState.ratio * audioState.duration, { forceStart: true });
+        }
+        updateSongIndicator(getAudioState());
+      };
+
+      songProgressTrack.addEventListener("pointerup", finishScrub);
+      songProgressTrack.addEventListener("pointercancel", finishScrub);
 
       resize();
       window.addEventListener("resize", resize);
