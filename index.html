@@ -226,6 +226,24 @@
       <p id="song-hint">right hand open/play, closed/pause · left hand up/down scale, side/side filter, fingers fx</p>
     </div>
 
+    <div id="instruction-receipt" hidden>
+      <div id="instruction-receipt-card" role="note" aria-label="how to use receipt">
+        <p id="instruction-eyebrow">how to use</p>
+        <div class="receipt-barcode" aria-hidden="true"></div>
+        <p class="receipt-title instruction-title">play receipt</p>
+        <div class="receipt-divider" aria-hidden="true"></div>
+        <div class="receipt-list">
+          <p class="receipt-row"><span>playback</span><span>right hand open = play</span></p>
+          <p class="receipt-row"><span>pause</span><span>right hand closed = pause</span></p>
+          <p class="receipt-row"><span>pitch/filter</span><span>left hand up/down + side/side</span></p>
+          <p class="receipt-row"><span>fx</span><span>left hand fingers control effects</span></p>
+          <p class="receipt-row"><span>audio</span><span>import mp3 to mix with synth</span></p>
+        </div>
+        <button id="instruction-close-btn" type="button">got it</button>
+        <div class="receipt-tear" aria-hidden="true"></div>
+      </div>
+    </div>
+
     <input
       id="audio-file-input"
       type="file"
@@ -257,6 +275,8 @@
       const overlay = document.getElementById("overlay");
       const overlayCard = document.getElementById("overlay-card");
       const beginButton = document.getElementById("begin-btn");
+      const instructionReceipt = document.getElementById("instruction-receipt");
+      const instructionCloseButton = document.getElementById("instruction-close-btn");
 
       const importAudioButton = document.getElementById("import-audio-btn");
       const playToggleButton = document.getElementById("play-toggle-btn");
@@ -342,6 +362,7 @@
       }
 
       const PRELOADER_DURATION_MS = 3400;
+      const INSTRUCTION_RECEIPT_HIDE_MS = 220;
 
       function dismissPreloader() {
         if (!preloader || preloader.dataset.dismissed === "true") {
@@ -353,6 +374,28 @@
         window.setTimeout(() => {
           preloader.style.display = "none";
         }, 560);
+      }
+
+      function showInstructionReceipt() {
+        if (!instructionReceipt) {
+          return;
+        }
+
+        instructionReceipt.hidden = false;
+        requestAnimationFrame(() => {
+          instructionReceipt.classList.add("is-visible");
+        });
+      }
+
+      function hideInstructionReceipt() {
+        if (!instructionReceipt || instructionReceipt.hidden) {
+          return;
+        }
+
+        instructionReceipt.classList.remove("is-visible");
+        window.setTimeout(() => {
+          instructionReceipt.hidden = true;
+        }, INSTRUCTION_RECEIPT_HIDE_MS);
       }
 
       function updatePitchVolumeTrackers(hz, volume) {
@@ -634,6 +677,7 @@
 
           started = true;
           overlay.style.display = "none";
+          showInstructionReceipt();
           updateSongIndicator(getAudioState());
         } catch (error) {
           console.error("Failed to start instrument:", error);
@@ -861,6 +905,7 @@
         overlayTargetX = 0.5;
         overlayTargetY = 0.5;
       });
+      instructionCloseButton?.addEventListener("click", hideInstructionReceipt);
       syncSoundPanel();
       updateFingerMeters(fingerEffectsFromHand(null));
       updatePitchVolumeTrackers(0, 0);
