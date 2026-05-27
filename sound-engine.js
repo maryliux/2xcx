@@ -22,6 +22,13 @@ const TIP_INDICES = [4, 8, 12, 16, 20];
 const RIGHT_CLOSED_OPENNESS = 0.09;
 const RIGHT_OPEN_OPENNESS = 0.33;
 
+function hasRequiredLandmarks(hand, indices) {
+  if (!hand) {
+    return false;
+  }
+  return indices.every((i) => hand[i] && Number.isFinite(hand[i].x) && Number.isFinite(hand[i].y));
+}
+
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
@@ -278,7 +285,7 @@ export function updateSound(rightHand, leftHand) {
     mediaElement.playbackRate = 1;
   }
 
-  if (rightHand && rightHand[0]) {
+  if (hasRequiredLandmarks(rightHand, [0, 4, 8, 12, 16, 20])) {
     const wristY = rightHand[0].y;
     const openness = opennessFromHand(rightHand);
 
@@ -331,12 +338,18 @@ export function updateSound(rightHand, leftHand) {
     pitchShift.pitch = smoothedPitch;
   }
 
-  if (leftHand) {
+  const volumeHand = hasRequiredLandmarks(leftHand, [0, 4, 8, 12, 16, 20])
+    ? leftHand
+    : hasRequiredLandmarks(rightHand, [0, 4, 8, 12, 16, 20])
+    ? rightHand
+    : null;
+
+  if (volumeHand) {
     const tips = [4, 8, 12, 16, 20];
-    const wrist = leftHand[0];
+    const wrist = volumeHand[0];
     const avgDist = tips.reduce((sum, i) => {
-      const dx = leftHand[i].x - wrist.x;
-      const dy = leftHand[i].y - wrist.y;
+      const dx = volumeHand[i].x - wrist.x;
+      const dy = volumeHand[i].y - wrist.y;
       return sum + Math.sqrt(dx * dx + dy * dy);
     }, 0) / tips.length;
     const openness = Math.max(0, Math.min(1, (avgDist - 0.05) / 0.30));
