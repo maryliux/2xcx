@@ -213,6 +213,43 @@ video {
   border: 1px solid rgba(255, 255, 255, 0.85);
 }
 
+.finger-meter-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 8px;
+  align-items: center;
+}
+
+.finger-meter-name {
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.finger-meter-value {
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  color: rgba(47, 184, 255, 0.95);
+}
+
+.finger-meter-track {
+  grid-column: 1 / -1;
+  position: relative;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.finger-meter-fill {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(47, 184, 255, 0.9), rgba(255, 95, 199, 0.9));
+  transition: width 70ms linear;
+}
+
 #song-indicator {
   position: absolute;
   left: 50%;

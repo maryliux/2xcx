@@ -88,6 +88,50 @@
           <input class="effect-amount" type="range" min="0" max="1" step="0.01" value="0.85" data-effect-amount="pitch" />
         </div>
       </div>
+
+      <div class="sound-panel-group">
+        <p class="sound-panel-label">finger fx meters</p>
+
+        <div class="finger-meter-row">
+          <span class="finger-meter-name">thumb drive</span>
+          <span class="finger-meter-value" data-finger-value="thumb">0%</span>
+          <div class="finger-meter-track">
+            <div class="finger-meter-fill" data-finger-meter="thumb"></div>
+          </div>
+        </div>
+
+        <div class="finger-meter-row">
+          <span class="finger-meter-name">index resonance</span>
+          <span class="finger-meter-value" data-finger-value="index">0%</span>
+          <div class="finger-meter-track">
+            <div class="finger-meter-fill" data-finger-meter="index"></div>
+          </div>
+        </div>
+
+        <div class="finger-meter-row">
+          <span class="finger-meter-name">middle reverb</span>
+          <span class="finger-meter-value" data-finger-value="middle">0%</span>
+          <div class="finger-meter-track">
+            <div class="finger-meter-fill" data-finger-meter="middle"></div>
+          </div>
+        </div>
+
+        <div class="finger-meter-row">
+          <span class="finger-meter-name">ring pitch range</span>
+          <span class="finger-meter-value" data-finger-value="ring">0%</span>
+          <div class="finger-meter-track">
+            <div class="finger-meter-fill" data-finger-meter="ring"></div>
+          </div>
+        </div>
+
+        <div class="finger-meter-row">
+          <span class="finger-meter-name">pinky pitch wet</span>
+          <span class="finger-meter-value" data-finger-value="pinky">0%</span>
+          <div class="finger-meter-track">
+            <div class="finger-meter-fill" data-finger-meter="pinky"></div>
+          </div>
+        </div>
+      </div>
     </aside>
 
     <div id="song-indicator">
@@ -146,6 +190,8 @@
       const filterButtons = Array.from(document.querySelectorAll("[data-filter]"));
       const effectToggles = Array.from(document.querySelectorAll("[data-effect]"));
       const effectAmountSliders = Array.from(document.querySelectorAll("[data-effect-amount]"));
+      const fingerMeterFills = Array.from(document.querySelectorAll("[data-finger-meter]"));
+      const fingerMeterValues = Array.from(document.querySelectorAll("[data-finger-value]"));
 
       let latestResults = null;
       let started = false;
@@ -221,6 +267,43 @@
         const dy = a.y - b.y;
         const dz = (a.z || 0) - (b.z || 0);
         return Math.hypot(dx, dy, dz);
+      }
+
+      function fingerEffectsFromHand(hand) {
+        const levels = {
+          thumb: 0,
+          index: 0,
+          middle: 0,
+          ring: 0,
+          pinky: 0,
+        };
+
+        if (!hand || !hand[4] || !hand[8] || !hand[12] || !hand[16] || !hand[20]) {
+          return levels;
+        }
+
+        levels.thumb = 1 - clamp(hand[4].y, 0, 1);
+        levels.index = 1 - clamp(hand[8].y, 0, 1);
+        levels.middle = 1 - clamp(hand[12].y, 0, 1);
+        levels.ring = 1 - clamp(hand[16].y, 0, 1);
+        levels.pinky = 1 - clamp(hand[20].y, 0, 1);
+
+        return levels;
+      }
+
+      function updateFingerMeters(levels) {
+        fingerMeterFills.forEach((fill) => {
+          const key = fill.dataset.fingerMeter;
+          const value = clamp(levels[key] ?? 0, 0, 1);
+          fill.style.width = `${(value * 100).toFixed(1)}%`;
+          fill.style.opacity = (0.25 + value * 0.75).toFixed(3);
+        });
+
+        fingerMeterValues.forEach((label) => {
+          const key = label.dataset.fingerValue;
+          const value = clamp(levels[key] ?? 0, 0, 1);
+          label.textContent = `${Math.round(value * 100)}%`;
+        });
       }
 
       function leftHandOpenScore(hand) {
@@ -486,6 +569,8 @@
           handleLeftHandPlayback(leftHand);
         }
 
+        updateFingerMeters(fingerEffectsFromHand(rightHand));
+
         const metrics = updateSound(rightHand, leftHand);
         hudHz = metrics.hz;
         hudVolume = metrics.volume;
@@ -597,6 +682,7 @@
       window.addEventListener("resize", resize);
       beginButton.addEventListener("click", begin);
       syncSoundPanel();
+      updateFingerMeters(fingerEffectsFromHand(null));
       updateSongIndicator(getAudioState());
       requestAnimationFrame(frame);
     </script>
