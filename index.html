@@ -72,9 +72,19 @@
 
     <div id="overlay">
       <div id="overlay-card">
-        <p id="overlay-eyebrow">interactive hand instrument</p>
+        <p id="overlay-eyebrow">sound lab receipt</p>
+        <div class="receipt-barcode" aria-hidden="true"></div>
+        <p class="receipt-title">begin creating</p>
+        <div class="receipt-divider" aria-hidden="true"></div>
+        <div class="receipt-list" aria-hidden="true">
+          <p class="receipt-row"><span>session</span><span>live hand instrument</span></p>
+          <p class="receipt-row"><span>input</span><span>camera tracking</span></p>
+          <p class="receipt-row"><span>output</span><span>synth + imported mp3</span></p>
+          <p class="receipt-row"><span>status</span><span>ready</span></p>
+        </div>
         <button id="begin-btn" type="button">begin creating</button>
-        <p id="overlay-note">webcam + audio access required</p>
+        <p id="overlay-note">click receipt to initialize webcam + audio</p>
+        <div class="receipt-tear" aria-hidden="true"></div>
       </div>
     </div>
 
@@ -245,6 +255,7 @@
       const video = document.getElementById("feed");
       const preloader = document.getElementById("preloader");
       const overlay = document.getElementById("overlay");
+      const overlayCard = document.getElementById("overlay-card");
       const beginButton = document.getElementById("begin-btn");
 
       const importAudioButton = document.getElementById("import-audio-btn");
@@ -315,9 +326,19 @@
         overlaySmoothY += (overlayTargetY - overlaySmoothY) * 0.16;
         overlayHover += (overlayHoverTarget - overlayHover) * 0.18;
 
+        const centeredX = overlaySmoothX - 0.5;
+        const centeredY = overlaySmoothY - 0.5;
+
         overlay.style.setProperty("--cursor-x", `${(overlaySmoothX * 100).toFixed(2)}%`);
         overlay.style.setProperty("--cursor-y", `${(overlaySmoothY * 100).toFixed(2)}%`);
         overlay.style.setProperty("--hover-alpha", `${clamp(overlayHover, 0, 1).toFixed(3)}`);
+
+        if (overlayCard) {
+          overlayCard.style.setProperty("--receipt-tilt-x", `${(-centeredY * 5).toFixed(2)}deg`);
+          overlayCard.style.setProperty("--receipt-tilt-y", `${(centeredX * 6).toFixed(2)}deg`);
+          overlayCard.style.setProperty("--receipt-shine-x", `${(overlaySmoothX * 100).toFixed(2)}%`);
+          overlayCard.style.setProperty("--receipt-shine-y", `${(overlaySmoothY * 100).toFixed(2)}%`);
+        }
       }
 
       const PRELOADER_DURATION_MS = 3400;
@@ -818,6 +839,15 @@
       resize();
       window.addEventListener("resize", resize);
       beginButton.addEventListener("click", begin);
+      overlayCard?.addEventListener("click", (event) => {
+        if (event.target === beginButton || beginButton.contains(event.target)) {
+          return;
+        }
+        if (started || beginButton.disabled) {
+          return;
+        }
+        begin();
+      });
       overlay.addEventListener("pointermove", (event) => {
         setOverlayPointerTarget(event.clientX, event.clientY);
         overlayHoverTarget = 1;
@@ -828,6 +858,8 @@
       });
       overlay.addEventListener("pointerleave", () => {
         overlayHoverTarget = 0;
+        overlayTargetX = 0.5;
+        overlayTargetY = 0.5;
       });
       syncSoundPanel();
       updateFingerMeters(fingerEffectsFromHand(null));
