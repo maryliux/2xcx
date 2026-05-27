@@ -23,52 +23,7 @@
     <video id="feed" playsinline></video>
 
     <div id="preloader" aria-hidden="true">
-      <svg id="preloader-wires" viewBox="0 0 730 730" role="presentation" aria-hidden="true">
-        <rect class="preloader-bg" x="0" y="0" width="730" height="730" />
-
-        <defs>
-          <pattern id="dot-fill" patternUnits="userSpaceOnUse" width="11.5" height="11.5">
-            <circle cx="3.85" cy="3.85" r="3.25" fill="#ffffff" />
-          </pattern>
-
-          <clipPath id="earbud-shape">
-            <ellipse cx="243" cy="300" rx="108" ry="78" transform="rotate(-10 243 300)" />
-            <ellipse cx="490" cy="298" rx="105" ry="76" transform="rotate(9 490 298)" />
-            <rect x="286" y="252" width="164" height="86" rx="40" />
-
-            <path d="M203 360 C 183 438, 182 530, 206 607" fill="none" stroke="#fff" stroke-width="39" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M373 350 C 362 455, 362 542, 378 621" fill="none" stroke="#fff" stroke-width="37" stroke-linecap="round" stroke-linejoin="round" />
-
-            <ellipse cx="203" cy="632" rx="54" ry="44" transform="rotate(-10 203 632)" />
-            <ellipse cx="378" cy="640" rx="54" ry="44" transform="rotate(8 378 640)" />
-
-            <path d="M429 349 C 452 381, 456 416, 451 451" fill="none" stroke="#fff" stroke-width="26" stroke-linecap="round" />
-            <rect x="436" y="381" width="29" height="73" rx="12" />
-            <rect x="458" y="404" width="62" height="16" rx="7" />
-          </clipPath>
-        </defs>
-
-        <g class="earbud-dots" clip-path="url(#earbud-shape)">
-          <rect x="0" y="0" width="730" height="730" fill="url(#dot-fill)" />
-        </g>
-
-        <g class="earbud-cutouts">
-          <path class="cut-stroke" d="M170 267 C 214 235, 272 235, 315 267" />
-          <path class="cut-stroke" d="M166 288 C 220 255, 282 256, 327 288" />
-          <path class="cut-stroke" d="M170 312 C 222 283, 282 283, 323 312" />
-          <path class="cut-stroke" d="M180 336 C 220 318, 265 317, 295 336" />
-
-          <path class="cut-stroke" d="M410 267 C 454 237, 517 237, 555 267" />
-          <path class="cut-stroke" d="M406 288 C 455 258, 520 258, 562 288" />
-          <path class="cut-stroke" d="M410 311 C 456 286, 519 286, 557 311" />
-          <path class="cut-stroke" d="M422 334 C 455 318, 507 318, 541 334" />
-
-          <ellipse class="cut-hole" cx="205" cy="618" rx="11" ry="7" transform="rotate(-17 205 618)" />
-          <ellipse class="cut-hole" cx="218" cy="622" rx="8" ry="5" transform="rotate(-17 218 622)" />
-          <ellipse class="cut-hole" cx="372" cy="628" rx="11" ry="7" transform="rotate(12 372 628)" />
-          <ellipse class="cut-hole" cx="385" cy="632" rx="8" ry="5" transform="rotate(12 385 632)" />
-        </g>
-      </svg>
+      <img id="preloader-svg" src="./preloader.svg" alt="" aria-hidden="true" />
       <p id="preloader-note">wiring up your instrument...</p>
     </div>
 

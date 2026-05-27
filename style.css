@@ -46,40 +46,11 @@ video {
   pointer-events: none;
 }
 
-#preloader-wires {
+#preloader-svg {
   width: min(730px, 90vw);
-  height: min(90vh, 730px);
-}
-
-.preloader-bg {
-  fill: #000000;
-}
-
-.earbud-dots,
-.earbud-cutouts {
-  opacity: 0;
-  transform-box: fill-box;
-  transform-origin: center;
-}
-
-.earbud-dots {
-  animation: earbuds-reveal 1.2s ease forwards 0.14s;
-}
-
-.earbud-cutouts {
-  animation: earbuds-reveal 0.7s ease forwards 0.62s;
-}
-
-.cut-stroke {
-  fill: none;
-  stroke: #020202;
-  stroke-width: 12;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.cut-hole {
-  fill: #020202;
+  height: auto;
+  max-height: min(90vh, 730px);
+  object-fit: contain;
 }
 
 #preloader-note {
@@ -90,17 +61,6 @@ video {
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.7);
-}
-
-@keyframes earbuds-reveal {
-  0% {
-    opacity: 0;
-    transform: translateY(8px) scale(0.985);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
 }
 
 #overlay {
