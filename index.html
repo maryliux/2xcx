@@ -59,6 +59,7 @@
         initAudio,
         loadAudioFile,
         setPlaybackFromGesture,
+        seekToRatio,
         togglePlayback,
         updateSound,
       } from "./sound-engine.js";
@@ -75,6 +76,7 @@
       const songTitle = document.getElementById("song-title");
       const songTime = document.getElementById("song-time");
       const songHint = document.getElementById("song-hint");
+      const songProgressTrack = document.getElementById("song-progress-track");
       const songProgressFill = document.getElementById("song-progress-fill");
       const uploadStatus = document.getElementById("upload-status");
 
@@ -90,6 +92,11 @@
       const leftHandGestureState = {
         playbackState: null,
         openScore: 1.1,
+      };
+
+      const scrubState = {
+        active: false,
+        pointerId: null,
       };
 
       function clamp(value, min, max) {
@@ -191,8 +198,22 @@
 
         playToggleButton.disabled = !hasTrack;
         playToggleButton.textContent = audioState?.isPlaying ? "pause" : "play";
-        songHint.textContent = "left hand open = play, closed = pause · right fingers control synth";
+        songHint.textContent = "left hand open = play, closed = pause · click/drag bar to scrub";
         uploadStatus.textContent = uploadMessage;
+      }
+
+      function progressRatioFromEvent(event) {
+        const rect = songProgressTrack.getBoundingClientRect();
+        if (!rect.width) {
+          return 0;
+        }
+        return clamp((event.clientX - rect.left) / rect.width, 0, 1);
+      }
+
+      function scrubToEventPosition(event) {
+        const ratio = progressRatioFromEvent(event);
+        const state = seekToRatio(ratio);
+        updateSongIndicator(state);
       }
 
       function selectHands(results) {
@@ -410,13 +431,50 @@
         } catch (error) {
           console.error("Import failed", error);
           uploadMessage = "upload successful";
-          songHint.textContent = "left hand open = play, closed = pause · right fingers control synth";
+          songHint.textContent = "left hand open = play, closed = pause · click/drag bar to scrub";
           updateSongIndicator(getAudioState());
         } finally {
           importAudioButton.disabled = false;
           importAudioButton.textContent = "import mp3";
         }
       });
+
+      songProgressTrack.addEventListener("pointerdown", (event) => {
+        if (!started || !getAudioState().hasTrack) {
+          return;
+        }
+
+        scrubState.active = true;
+        scrubState.pointerId = event.pointerId;
+        if (typeof songProgressTrack.setPointerCapture === "function") {
+          songProgressTrack.setPointerCapture(event.pointerId);
+        }
+        scrubToEventPosition(event);
+        event.preventDefault();
+      });
+
+      songProgressTrack.addEventListener("pointermove", (event) => {
+        if (!scrubState.active || event.pointerId !== scrubState.pointerId) {
+          return;
+        }
+        scrubToEventPosition(event);
+      });
+
+      const endScrub = (event) => {
+        if (!scrubState.active || event.pointerId !== scrubState.pointerId) {
+          return;
+        }
+
+        scrubToEventPosition(event);
+        scrubState.active = false;
+        scrubState.pointerId = null;
+        if (typeof songProgressTrack.hasPointerCapture === "function" && songProgressTrack.hasPointerCapture(event.pointerId)) {
+          songProgressTrack.releasePointerCapture(event.pointerId);
+        }
+      };
+
+      songProgressTrack.addEventListener("pointerup", endScrub);
+      songProgressTrack.addEventListener("pointercancel", endScrub);
 
       playToggleButton.addEventListener("click", async () => {
         if (!started) {

@@ -170,6 +170,8 @@ video {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.15);
   overflow: hidden;
+  cursor: pointer;
+  touch-action: none;
 }
 
 #song-progress-fill {
