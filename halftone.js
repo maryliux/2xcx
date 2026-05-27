@@ -1,12 +1,16 @@
-const CELL_SIZE = 3;
+const CELL_SIZE = 9;
 const SAMPLE_STRIDE = 2;
 
-const MIN_DOT_SIZE = 0.22;
-const MAX_DOT_SIZE = 1.18;
-const DOT_ALPHA = 0.9;
-const LUMA_CUTOFF = 0.06;
-const POSTERIZE_LEVELS = 6;
-const DENSITY_BIAS = 0.08;
+const BACKGROUND_COLOR = "#c63d1f";
+const DOT_COLOR = "#ffffff";
+const DOT_ALPHA = 0.98;
+const MIN_RADIUS = 1.0;
+const MAX_RADIUS = 3.6;
+
+const DIFF_THRESHOLD = 0.07;
+const FOREGROUND_MIN = 0.22;
+const BG_ADAPT_FAST = 0.045;
+const BG_ADAPT_SLOW = 0.002;
 
 const BAYER_4X4 = [
   0, 8, 2, 10,
@@ -17,6 +21,10 @@ const BAYER_4X4 = [
 
 const offscreen = document.createElement("canvas");
 const offCtx = offscreen.getContext("2d", { willReadFrequently: true });
+
+let backgroundModel = null;
+let cachedCols = 0;
+let cachedRows = 0;
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -58,25 +66,25 @@ function blurGrid(grid, cols, rows) {
       const west = gx > 0 ? idx - 1 : idx;
       const east = gx < cols - 1 ? idx + 1 : idx;
 
-      const northwest = gy > 0 && gx > 0 ? idx - cols - 1 : idx;
-      const northeast = gy > 0 && gx < cols - 1 ? idx - cols + 1 : idx;
-      const southwest = gy < rows - 1 && gx > 0 ? idx + cols - 1 : idx;
-      const southeast = gy < rows - 1 && gx < cols - 1 ? idx + cols + 1 : idx;
-
       out[idx] =
-        grid[idx] * 0.34 +
-        grid[north] * 0.13 +
-        grid[south] * 0.13 +
-        grid[west] * 0.13 +
-        grid[east] * 0.13 +
-        grid[northwest] * 0.035 +
-        grid[northeast] * 0.035 +
-        grid[southwest] * 0.035 +
-        grid[southeast] * 0.035;
+        grid[idx] * 0.44 +
+        grid[north] * 0.14 +
+        grid[south] * 0.14 +
+        grid[west] * 0.14 +
+        grid[east] * 0.14;
     }
   }
 
   return out;
+}
+
+function ensureBackgroundModel(cols, rows) {
+  if (!backgroundModel || cols !== cachedCols || rows !== cachedRows) {
+    cachedCols = cols;
+    cachedRows = rows;
+    backgroundModel = new Float32Array(cols * rows);
+    backgroundModel.fill(0.5);
+  }
 }
 
 export function drawHalftone(ctx, video, canvasW, canvasH) {
@@ -94,12 +102,15 @@ export function drawHalftone(ctx, video, canvasW, canvasH) {
 
   const cols = Math.ceil(canvasW / CELL_SIZE);
   const rows = Math.ceil(canvasH / CELL_SIZE);
+  ensureBackgroundModel(cols, rows);
+
   const luma = new Float32Array(cols * rows);
+  let lumaSum = 0;
 
   for (let gy = 0; gy < rows; gy += 1) {
     for (let gx = 0; gx < cols; gx += 1) {
       const idx = gy * cols + gx;
-      luma[idx] = sampleCellBrightness(
+      const brightness = sampleCellBrightness(
         frame,
         canvasW,
         canvasH,
@@ -107,43 +118,54 @@ export function drawHalftone(ctx, video, canvasW, canvasH) {
         gy * CELL_SIZE,
         CELL_SIZE
       );
+      luma[idx] = brightness;
+      lumaSum += brightness;
     }
   }
 
-  // Double blur intentionally softens detail edges into cleaner dot masses.
-  const soft = blurGrid(blurGrid(luma, cols, rows), cols, rows);
+  const meanLuma = lumaSum / Math.max(1, cols * rows);
+  const soft = blurGrid(luma, cols, rows);
 
   ctx.save();
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = BACKGROUND_COLOR;
+  ctx.fillRect(0, 0, canvasW, canvasH);
+
   ctx.globalAlpha = DOT_ALPHA;
+  ctx.fillStyle = DOT_COLOR;
 
   for (let gy = 0; gy < rows; gy += 1) {
     for (let gx = 0; gx < cols; gx += 1) {
       const idx = gy * cols + gx;
-      const brightness = soft[idx];
-      if (brightness <= LUMA_CUTOFF) {
+      const current = soft[idx];
+      const previousBg = backgroundModel[idx];
+      const diff = Math.abs(current - previousBg);
+
+      const brightBias = clamp((current - (meanLuma + 0.02)) * 3.2, 0, 1);
+      const motionBias = clamp((diff - DIFF_THRESHOLD) / 0.25, 0, 1);
+      const foregroundScore = Math.max(brightBias, motionBias);
+
+      const adapt = foregroundScore > FOREGROUND_MIN ? BG_ADAPT_SLOW : BG_ADAPT_FAST;
+      backgroundModel[idx] = previousBg * (1 - adapt) + current * adapt;
+
+      if (foregroundScore <= FOREGROUND_MIN) {
         continue;
       }
-
-      const normalized = clamp(
-        (brightness - LUMA_CUTOFF) / (1 - LUMA_CUTOFF),
-        0,
-        1
-      );
 
       const dither = (BAYER_4X4[(gy & 3) * 4 + (gx & 3)] + 0.5) / 16;
-      const density = normalized * 0.9 + DENSITY_BIAS;
-      if (density < dither) {
+      const presence = clamp(foregroundScore * 1.1, 0, 1);
+      if (presence < dither * 0.92) {
         continue;
       }
 
-      const quantized =
-        Math.round(normalized * POSTERIZE_LEVELS) / POSTERIZE_LEVELS;
-      const dotSize = MIN_DOT_SIZE + quantized * (MAX_DOT_SIZE - MIN_DOT_SIZE);
-
+      const radius =
+        MIN_RADIUS +
+        clamp(foregroundScore, 0, 1) * (MAX_RADIUS - MIN_RADIUS);
       const cx = gx * CELL_SIZE + CELL_SIZE * 0.5;
       const cy = gy * CELL_SIZE + CELL_SIZE * 0.5;
-      ctx.fillRect(cx - dotSize * 0.5, cy - dotSize * 0.5, dotSize, dotSize);
+
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 
