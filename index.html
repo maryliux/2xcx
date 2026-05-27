@@ -23,14 +23,28 @@
     <video id="feed" playsinline></video>
 
     <div id="preloader" aria-hidden="true">
-      <svg id="preloader-wires" viewBox="0 0 1000 700" role="presentation" aria-hidden="true">
-        <path class="wire-path wire-a" d="M245 88 C 160 210, 160 355, 270 470 C 390 590, 590 620, 710 555 C 860 470, 885 290, 790 128" />
-        <path class="wire-path wire-b" d="M760 98 C 825 245, 848 360, 790 502 C 725 658, 470 690, 310 608 C 175 538, 122 420, 150 250 C 173 125, 248 92, 248 92" />
-        <path class="wire-path wire-c" d="M505 625 C 438 528, 438 455, 514 408 C 602 352, 726 386, 744 488 C 759 571, 665 640, 542 644" />
-        <circle class="earbud-shell" cx="248" cy="92" r="17" />
-        <circle class="earbud-shell" cx="790" cy="128" r="17" />
-        <rect class="wire-inline" x="756" y="252" width="28" height="92" rx="12" />
-        <rect class="jack" x="148" y="247" width="50" height="12" rx="5" />
+      <svg id="preloader-wires" viewBox="0 0 1000 1000" role="presentation" aria-hidden="true">
+        <path class="wire-path wire-coil-1" d="M250 230 C 360 130, 640 130, 750 230 C 820 300, 820 390, 750 455 C 640 555, 360 555, 250 455 C 180 390, 180 300, 250 230" />
+        <path class="wire-path wire-coil-2" d="M280 250 C 375 170, 625 170, 720 250 C 780 305, 780 370, 720 425 C 625 505, 375 505, 280 425 C 220 370, 220 305, 280 250" />
+        <path class="wire-path wire-coil-3" d="M310 270 C 390 205, 610 205, 690 270 C 740 314, 740 360, 690 404 C 610 469, 390 469, 310 404 C 260 360, 260 314, 310 270" />
+        <path class="wire-path wire-coil-4" d="M338 288 C 404 238, 596 238, 662 288 C 706 323, 706 351, 662 386 C 596 436, 404 436, 338 386 C 294 351, 294 323, 338 288" />
+
+        <path class="wire-path wire-drop-left" d="M412 448 C 386 580, 368 682, 352 792" />
+        <path class="wire-path wire-drop-right" d="M584 448 C 612 582, 624 686, 632 792" />
+        <path class="wire-path wire-jack-cord" d="M690 430 C 776 514, 826 620, 848 738" />
+
+        <rect class="hardware-item wire-tie" x="486" y="288" width="28" height="74" rx="13" />
+
+        <rect class="hardware-item earbud-stem earbud-left-stem" x="334" y="786" width="36" height="98" rx="16" />
+        <ellipse class="hardware-item earbud-shell earbud-left-shell" cx="328" cy="900" rx="56" ry="42" transform="rotate(-15 328 900)" />
+
+        <rect class="hardware-item earbud-stem earbud-right-stem" x="612" y="790" width="36" height="100" rx="16" />
+        <ellipse class="hardware-item earbud-shell earbud-right-shell" cx="638" cy="904" rx="56" ry="42" transform="rotate(13 638 904)" />
+
+        <rect class="hardware-item jack-body" x="824" y="702" width="52" height="118" rx="20" />
+        <rect class="hardware-item jack-tip" x="876" y="744" width="70" height="24" rx="11" />
+        <circle class="hardware-item jack-ring" cx="906" cy="756" r="5.5" />
+        <circle class="hardware-item jack-ring" cx="927" cy="756" r="5.5" />
       </svg>
       <p id="preloader-note">wiring up your instrument...</p>
     </div>

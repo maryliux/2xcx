@@ -47,32 +47,46 @@ video {
 }
 
 #preloader-wires {
-  width: min(930px, 96vw);
-  height: min(88vh, 700px);
+  width: min(760px, 88vw);
+  height: min(88vh, 760px);
 }
 
 .wire-path {
   fill: none;
-  stroke: rgba(255, 255, 255, 0.96);
-  stroke-width: 6;
+  stroke: rgba(255, 255, 255, 0.97);
+  stroke-width: 8;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-dasharray: 1750;
-  stroke-dashoffset: 1750;
-  animation: wire-draw 2.6s cubic-bezier(0.22, 0.8, 0.2, 1) forwards;
+  stroke-dasharray: 2200;
+  stroke-dashoffset: 2200;
+  animation: wire-draw 2.5s cubic-bezier(0.25, 0.85, 0.2, 1) forwards;
 }
 
-.wire-b {
+.wire-coil-2 {
+  animation-delay: 0.08s;
+}
+
+.wire-coil-3 {
   animation-delay: 0.16s;
 }
 
-.wire-c {
+.wire-coil-4 {
+  animation-delay: 0.24s;
+}
+
+.wire-drop-left {
   animation-delay: 0.34s;
 }
 
-.earbud-shell,
-.wire-inline,
-.jack {
+.wire-drop-right {
+  animation-delay: 0.42s;
+}
+
+.wire-jack-cord {
+  animation-delay: 0.5s;
+}
+
+.hardware-item {
   fill: rgba(255, 255, 255, 0.97);
   opacity: 0;
   transform-box: fill-box;
@@ -80,16 +94,43 @@ video {
   animation: hardware-pop 360ms ease forwards;
 }
 
-.earbud-shell:nth-of-type(1) {
-  animation-delay: 0.52s;
+.wire-tie {
+  fill: rgba(242, 242, 246, 0.95);
+  animation-delay: 0.55s;
 }
 
-.wire-inline {
-  animation-delay: 0.74s;
+.earbud-left-stem {
+  animation-delay: 0.66s;
 }
 
-.jack {
-  animation-delay: 0.88s;
+.earbud-left-shell {
+  animation-delay: 0.72s;
+}
+
+.earbud-right-stem {
+  animation-delay: 0.78s;
+}
+
+.earbud-right-shell {
+  animation-delay: 0.84s;
+}
+
+.jack-body {
+  fill: rgba(245, 245, 247, 0.95);
+  animation-delay: 0.9s;
+}
+
+.jack-tip,
+.jack-ring {
+  fill: rgba(242, 242, 246, 0.94);
+}
+
+.jack-tip {
+  animation-delay: 0.96s;
+}
+
+.jack-ring {
+  animation-delay: 1.02s;
 }
 
 #preloader-note {
