@@ -397,6 +397,7 @@
           return;
         }
 
+        latestUploadedFileName = file.name;
         importAudioButton.disabled = true;
         importAudioButton.textContent = "loading...";
         uploadMessage = "uploading mp3...";
@@ -404,7 +405,6 @@
 
         try {
           await loadAudioFile(file);
-          latestUploadedFileName = file.name;
           uploadMessage = "upload successful";
           updateSongIndicator(getAudioState());
         } catch (error) {
