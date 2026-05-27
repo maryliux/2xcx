@@ -30,6 +30,95 @@ video {
   pointer-events: none;
 }
 
+#preloader {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: #020202;
+  overflow: hidden;
+  transition: opacity 520ms ease;
+}
+
+#preloader.is-exit {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#preloader-wires {
+  width: min(930px, 96vw);
+  height: min(88vh, 700px);
+}
+
+.wire-path {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.96);
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1750;
+  stroke-dashoffset: 1750;
+  animation: wire-draw 2.6s cubic-bezier(0.22, 0.8, 0.2, 1) forwards;
+}
+
+.wire-b {
+  animation-delay: 0.16s;
+}
+
+.wire-c {
+  animation-delay: 0.34s;
+}
+
+.earbud-shell,
+.wire-inline,
+.jack {
+  fill: rgba(255, 255, 255, 0.97);
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: hardware-pop 360ms ease forwards;
+}
+
+.earbud-shell:nth-of-type(1) {
+  animation-delay: 0.52s;
+}
+
+.wire-inline {
+  animation-delay: 0.74s;
+}
+
+.jack {
+  animation-delay: 0.88s;
+}
+
+#preloader-note {
+  position: absolute;
+  bottom: clamp(32px, 6vh, 64px);
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+@keyframes wire-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes hardware-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 #overlay {
   position: absolute;
   inset: 0;

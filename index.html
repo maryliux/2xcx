@@ -22,6 +22,19 @@
     <canvas id="main"></canvas>
     <video id="feed" playsinline></video>
 
+    <div id="preloader" aria-hidden="true">
+      <svg id="preloader-wires" viewBox="0 0 1000 700" role="presentation" aria-hidden="true">
+        <path class="wire-path wire-a" d="M245 88 C 160 210, 160 355, 270 470 C 390 590, 590 620, 710 555 C 860 470, 885 290, 790 128" />
+        <path class="wire-path wire-b" d="M760 98 C 825 245, 848 360, 790 502 C 725 658, 470 690, 310 608 C 175 538, 122 420, 150 250 C 173 125, 248 92, 248 92" />
+        <path class="wire-path wire-c" d="M505 625 C 438 528, 438 455, 514 408 C 602 352, 726 386, 744 488 C 759 571, 665 640, 542 644" />
+        <circle class="earbud-shell" cx="248" cy="92" r="17" />
+        <circle class="earbud-shell" cx="790" cy="128" r="17" />
+        <rect class="wire-inline" x="756" y="252" width="28" height="92" rx="12" />
+        <rect class="jack" x="148" y="247" width="50" height="12" rx="5" />
+      </svg>
+      <p id="preloader-note">wiring up your instrument...</p>
+    </div>
+
     <div id="overlay">
       <div id="overlay-card">
         <p id="overlay-eyebrow">interactive hand instrument</p>
@@ -195,6 +208,7 @@
       const canvas = document.getElementById("main");
       const ctx = canvas.getContext("2d");
       const video = document.getElementById("feed");
+      const preloader = document.getElementById("preloader");
       const overlay = document.getElementById("overlay");
       const beginButton = document.getElementById("begin-btn");
 
@@ -233,6 +247,20 @@
 
       function clamp(value, min, max) {
         return Math.min(max, Math.max(min, value));
+      }
+
+      const PRELOADER_DURATION_MS = 3000;
+
+      function dismissPreloader() {
+        if (!preloader || preloader.dataset.dismissed === "true") {
+          return;
+        }
+
+        preloader.dataset.dismissed = "true";
+        preloader.classList.add("is-exit");
+        window.setTimeout(() => {
+          preloader.style.display = "none";
+        }, 560);
       }
 
       function updatePitchVolumeTrackers(hz, volume) {
@@ -722,6 +750,7 @@
       updateFingerMeters(fingerEffectsFromHand(null));
       updatePitchVolumeTrackers(0, 0);
       updateSongIndicator(getAudioState());
+      window.setTimeout(dismissPreloader, PRELOADER_DURATION_MS);
       requestAnimationFrame(frame);
     </script>
   </body>
