@@ -34,6 +34,26 @@
       <p class="sound-panel-title">sound lab</p>
 
       <div class="sound-panel-group">
+        <p class="sound-panel-label">live trackers</p>
+
+        <div class="pv-row">
+          <span class="pv-name">pitch</span>
+          <span class="pv-value" id="tracker-pitch-value">0.0 hz</span>
+          <div class="pv-track">
+            <div class="pv-fill" id="tracker-pitch-fill"></div>
+          </div>
+        </div>
+
+        <div class="pv-row">
+          <span class="pv-name">volume</span>
+          <span class="pv-value" id="tracker-volume-value">0%</span>
+          <div class="pv-track">
+            <div class="pv-fill pv-fill-volume" id="tracker-volume-fill"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sound-panel-group">
         <p class="sound-panel-label">instrument</p>
         <div class="instrument-grid">
           <button type="button" class="sound-toggle is-active" data-instrument="guitar" aria-pressed="true">guitar</button>
@@ -186,6 +206,10 @@
       const songHint = document.getElementById("song-hint");
       const songProgressFill = document.getElementById("song-progress-fill");
       const uploadStatus = document.getElementById("upload-status");
+      const trackerPitchFill = document.getElementById("tracker-pitch-fill");
+      const trackerPitchValue = document.getElementById("tracker-pitch-value");
+      const trackerVolumeFill = document.getElementById("tracker-volume-fill");
+      const trackerVolumeValue = document.getElementById("tracker-volume-value");
       const instrumentButtons = Array.from(document.querySelectorAll("[data-instrument]"));
       const filterButtons = Array.from(document.querySelectorAll("[data-filter]"));
       const effectToggles = Array.from(document.querySelectorAll("[data-effect]"));
@@ -209,6 +233,18 @@
 
       function clamp(value, min, max) {
         return Math.min(max, Math.max(min, value));
+      }
+
+      function updatePitchVolumeTrackers(hz, volume) {
+        const safeHz = Number.isFinite(hz) ? hz : 0;
+        const safeVolume = Number.isFinite(volume) ? clamp(volume, 0, 1) : 0;
+        const pitchRatio = clamp((safeHz - 50) / (900 - 50), 0, 1);
+
+        trackerPitchFill.style.width = `${(pitchRatio * 100).toFixed(1)}%`;
+        trackerVolumeFill.style.width = `${(safeVolume * 100).toFixed(1)}%`;
+
+        trackerPitchValue.textContent = `${safeHz.toFixed(1)} hz`;
+        trackerVolumeValue.textContent = `${Math.round(safeVolume * 100)}%`;
       }
 
       function effectAmountFromConfig(config, key) {
@@ -577,6 +613,7 @@
         hudHands = latestResults?.multiHandLandmarks?.length || 0;
 
         drawHud();
+        updatePitchVolumeTrackers(hudHz, hudVolume);
         updateSongIndicator(getAudioState());
 
         requestAnimationFrame(frame);
@@ -683,6 +720,7 @@
       beginButton.addEventListener("click", begin);
       syncSoundPanel();
       updateFingerMeters(fingerEffectsFromHand(null));
+      updatePitchVolumeTrackers(0, 0);
       updateSongIndicator(getAudioState());
       requestAnimationFrame(frame);
     </script>
