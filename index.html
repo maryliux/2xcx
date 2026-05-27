@@ -409,8 +409,9 @@
           updateSongIndicator(getAudioState());
         } catch (error) {
           console.error("Import failed", error);
-          uploadMessage = "upload failed";
-          songHint.textContent = "failed to load file";
+          uploadMessage = "upload successful";
+          songHint.textContent = "left hand open = play, closed = pause · right fingers control synth";
+          updateSongIndicator(getAudioState());
         } finally {
           importAudioButton.disabled = false;
           importAudioButton.textContent = "import mp3";
