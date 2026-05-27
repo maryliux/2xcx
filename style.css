@@ -259,8 +259,8 @@ video {
   background-position: center center;
   opacity: calc(var(--hover-alpha) * 0.95);
   filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.26));
-  -webkit-mask-image: radial-gradient(circle 180px at var(--cursor-x) var(--cursor-y), rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.98) 28%, rgba(0, 0, 0, 0.55) 48%, rgba(0, 0, 0, 0) 74%);
-  mask-image: radial-gradient(circle 180px at var(--cursor-x) var(--cursor-y), rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.98) 28%, rgba(0, 0, 0, 0.55) 48%, rgba(0, 0, 0, 0) 74%);
+  -webkit-mask-image: radial-gradient(circle 120px at var(--cursor-x) var(--cursor-y), rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.98) 22%, rgba(0, 0, 0, 0.55) 40%, rgba(0, 0, 0, 0) 62%);
+  mask-image: radial-gradient(circle 120px at var(--cursor-x) var(--cursor-y), rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.98) 22%, rgba(0, 0, 0, 0.55) 40%, rgba(0, 0, 0, 0) 62%);
   pointer-events: none;
 }
 
