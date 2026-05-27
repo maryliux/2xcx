@@ -4,7 +4,7 @@ let oscillator = null;
 let synthGain = null;
 let filter = null;
 let reverb = null;
-let outputGain = null;
+let gainNode = null;
 let pitchShift = null;
 
 let mediaElement = null;
@@ -149,7 +149,7 @@ export async function initAudio() {
     return;
   }
 
-  outputGain = new ToneLib.Gain(0).toDestination();
+  gainNode = new ToneLib.Gain(0).toDestination();
   reverb = new ToneLib.Reverb({ decay: 2.3, wet: 0.2 });
   filter = new ToneLib.Filter({ type: "lowpass", frequency: 1900, Q: 0.8 });
   pitchShift = new ToneLib.PitchShift({ pitch: 0, wet: 1 });
@@ -162,7 +162,7 @@ export async function initAudio() {
   pitchShift.connect(filter);
   synthGain.connect(filter);
   filter.connect(reverb);
-  reverb.connect(outputGain);
+  reverb.connect(gainNode);
 
   oscillator = new ToneLib.Oscillator({
     type: "sine",
@@ -266,9 +266,7 @@ export async function setPlaybackFromGesture(shouldPlay) {
 }
 
 export function updateSound(rightHand, leftHand) {
-  void leftHand;
-
-  if (!initialized || !oscillator || !filter || !reverb || !outputGain || !synthGain || !pitchShift) {
+  if (!initialized || !oscillator || !filter || !reverb || !gainNode || !synthGain || !pitchShift) {
     return {
       hz: lastHz,
       volume: lastVolume,
@@ -300,9 +298,6 @@ export function updateSound(rightHand, leftHand) {
     );
     const hz = clamp(baseHz + closePitchOffset, 50, 900);
 
-    // Right-hand openness directly scales master volume:
-    // closed fist = 0%, open hand = 100%.
-    const volume = mapRange(openness, RIGHT_CLOSED_OPENNESS, RIGHT_OPEN_OPENNESS, 0, 1);
     const synthLevel = mapRange(thumbControl, 0, 1, 0.02, 0.32);
     const filterFreq = mapRange(indexControl, 0, 1, 260, 8200);
     const wet = mapRange(middleControl, 0, 1, 0.06, 0.75);
@@ -319,7 +314,6 @@ export function updateSound(rightHand, leftHand) {
 
     oscillator.frequency.rampTo(hz, 0.08);
     oscillator.volume.rampTo(oscVolumeDb, 0.1);
-    outputGain.gain.rampTo(volume, 0.05);
     synthGain.gain.rampTo(synthLevel, 0.08);
     filter.frequency.rampTo(filterFreq, 0.1);
     reverb.wet.rampTo(wet, 0.1);
@@ -328,16 +322,26 @@ export function updateSound(rightHand, leftHand) {
     pitchShift.pitch = smoothedPitch;
 
     lastHz = hz;
-    lastVolume = volume;
   } else {
-    outputGain.gain.rampTo(0, 0.08);
     synthGain.gain.rampTo(0.02, 0.1);
     oscillator.volume.rampTo(-20, 0.12);
     filter.frequency.rampTo(1900, 0.12);
     reverb.wet.rampTo(0.2, 0.12);
     smoothedPitch += (0 - smoothedPitch) * 0.15;
     pitchShift.pitch = smoothedPitch;
-    lastVolume = 0;
+  }
+
+  if (leftHand) {
+    const tips = [4, 8, 12, 16, 20];
+    const wrist = leftHand[0];
+    const avgDist = tips.reduce((sum, i) => {
+      const dx = leftHand[i].x - wrist.x;
+      const dy = leftHand[i].y - wrist.y;
+      return sum + Math.sqrt(dx * dx + dy * dy);
+    }, 0) / tips.length;
+    const openness = Math.max(0, Math.min(1, (avgDist - 0.05) / 0.30));
+    gainNode.gain.rampTo(openness, 0.05);
+    lastVolume = openness;
   }
 
   return {

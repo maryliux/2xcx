@@ -58,7 +58,6 @@
         getAudioState,
         initAudio,
         loadAudioFile,
-        setPlaybackFromGesture,
         togglePlayback,
         updateSound,
       } from "./sound-engine.js";
@@ -86,11 +85,6 @@
       let hudHands = 0;
       let uploadMessage = "awaiting mp3 upload";
 
-      const gestureState = {
-        leftPlaybackState: null,
-        leftOpenScore: 1.15,
-        leftOpenVelocity: 0,
-      };
 
       function clamp(value, min, max) {
         return Math.min(max, Math.max(min, value));
@@ -106,39 +100,6 @@
         const dy = a.y - b.y;
         const dz = (a.z || 0) - (b.z || 0);
         return Math.hypot(dx, dy, dz);
-      }
-
-      function opennessFromHand(hand) {
-        if (!hand || !hand[0] || !hand[5] || !hand[17]) {
-          return 0;
-        }
-
-        const palmIndices = [0, 5, 9, 13, 17];
-        let cx = 0;
-        let cy = 0;
-        let cz = 0;
-
-        palmIndices.forEach((idx) => {
-          cx += hand[idx].x;
-          cy += hand[idx].y;
-          cz += hand[idx].z || 0;
-        });
-
-        const center = {
-          x: cx / palmIndices.length,
-          y: cy / palmIndices.length,
-          z: cz / palmIndices.length,
-        };
-
-        const tips = [4, 8, 12, 16, 20];
-        let tipDistanceSum = 0;
-        tips.forEach((idx) => {
-          tipDistanceSum += distance3D(hand[idx], center);
-        });
-
-        const palmWidth = Math.max(distance3D(hand[5], hand[17]), 0.0001);
-        const normalizedSpread = (tipDistanceSum / tips.length) / palmWidth;
-        return normalizedSpread;
       }
 
       function formatTime(seconds) {
@@ -164,7 +125,7 @@
 
         playToggleButton.disabled = !hasTrack;
         playToggleButton.textContent = audioState?.isPlaying ? "pause" : "play";
-        songHint.textContent = "left hand open/play, closed/pause · right fingers control synth";
+        songHint.textContent = "left hand open/close = volume · right fingers control synth";
         uploadStatus.textContent = hasTrack ? `uploaded file: ${audioState.fileName}` : uploadMessage;
       }
 
@@ -188,46 +149,6 @@
         });
 
         return { rightHand, leftHand };
-      }
-
-      function handleLeftHandPlayback(leftHand) {
-        if (!leftHand) {
-          return;
-        }
-
-        const rawOpenness = opennessFromHand(leftHand);
-        const prevScore = gestureState.leftOpenScore;
-        const smoothedScore = prevScore * 0.72 + rawOpenness * 0.28;
-        const velocity = smoothedScore - prevScore;
-
-        gestureState.leftOpenScore = smoothedScore;
-        gestureState.leftOpenVelocity = velocity;
-
-        const OPEN_THRESHOLD = 1.22;
-        const CLOSE_THRESHOLD = 0.94;
-
-        if (
-          smoothedScore >= OPEN_THRESHOLD &&
-          velocity >= -0.02 &&
-          gestureState.leftPlaybackState !== true
-        ) {
-          gestureState.leftPlaybackState = true;
-          setPlaybackFromGesture(true).catch((error) => {
-            console.error("Left-hand play gesture failed", error);
-          });
-          return;
-        }
-
-        if (
-          smoothedScore <= CLOSE_THRESHOLD &&
-          velocity <= 0.02 &&
-          gestureState.leftPlaybackState !== false
-        ) {
-          gestureState.leftPlaybackState = false;
-          setPlaybackFromGesture(false).catch((error) => {
-            console.error("Left-hand pause gesture failed", error);
-          });
-        }
       }
 
       async function tuneExposure(stream) {
@@ -380,9 +301,6 @@
         ctx.restore();
 
         const { rightHand, leftHand } = selectHands(latestResults);
-        if (started) {
-          handleLeftHandPlayback(leftHand);
-        }
 
         const metrics = updateSound(rightHand, leftHand);
         hudHz = metrics.hz;
