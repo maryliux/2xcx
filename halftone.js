@@ -1,11 +1,11 @@
-const CELL_SIZE = 9;
-const SAMPLE_STRIDE = 2;
+const CELL_SIZE = 6;
+const SAMPLE_STRIDE = 1;
 
-const BACKGROUND_COLOR = "#c63d1f";
+const BACKGROUND_COLOR = "#000000";
 const DOT_COLOR = "#ffffff";
 const DOT_ALPHA = 0.98;
-const MIN_RADIUS = 1.0;
-const MAX_RADIUS = 3.6;
+const MIN_RADIUS = 0.5;
+const MAX_RADIUS = 1.9;
 
 const DIFF_THRESHOLD = 0.07;
 const FOREGROUND_MIN = 0.22;
