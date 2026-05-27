@@ -184,7 +184,7 @@
         const currentTime = Number.isFinite(audioState?.currentTime) ? audioState.currentTime : 0;
         const progress = duration > 0 ? clamp(currentTime / duration, 0, 1) : 0;
 
-        const displayName = audioState?.fileName || latestUploadedFileName || "awaiting mp3 upload";
+        const displayName = latestUploadedFileName || audioState?.fileName || "no track loaded";
         songTitle.textContent = displayName;
         songTime.textContent = `${formatTime(currentTime)} / ${formatTime(duration)}`;
         songProgressFill.style.width = `${progress * 100}%`;
@@ -405,7 +405,7 @@
         try {
           await loadAudioFile(file);
           latestUploadedFileName = file.name;
-          uploadMessage = `upload successful: ${file.name}`;
+          uploadMessage = "upload successful";
           updateSongIndicator(getAudioState());
         } catch (error) {
           console.error("Import failed", error);

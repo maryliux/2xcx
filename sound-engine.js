@@ -10,7 +10,7 @@ let pitchShift = null;
 let mediaElement = null;
 let mediaSource = null;
 let mediaObjectUrl = null;
-let loadedTrackName = "awaiting mp3 upload";
+let loadedTrackName = "no track loaded";
 
 let initialized = false;
 let lastHz = 220;
