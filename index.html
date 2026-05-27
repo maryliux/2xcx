@@ -278,6 +278,8 @@
       let overlayTargetY = 0.5;
       let overlaySmoothX = 0.5;
       let overlaySmoothY = 0.5;
+      let overlayHover = 0;
+      let overlayHoverTarget = 0;
 
       const leftHandGestureState = {
         playbackState: null,
@@ -309,22 +311,13 @@
           return;
         }
 
-        overlaySmoothX += (overlayTargetX - overlaySmoothX) * 0.14;
-        overlaySmoothY += (overlayTargetY - overlaySmoothY) * 0.14;
-
-        const centeredX = overlaySmoothX - 0.5;
-        const centeredY = overlaySmoothY - 0.5;
-        const gridShiftX = centeredX * 18;
-        const gridShiftY = centeredY * 18;
-        const nodeShiftX = centeredX * 36;
-        const nodeShiftY = centeredY * 36;
+        overlaySmoothX += (overlayTargetX - overlaySmoothX) * 0.16;
+        overlaySmoothY += (overlayTargetY - overlaySmoothY) * 0.16;
+        overlayHover += (overlayHoverTarget - overlayHover) * 0.18;
 
         overlay.style.setProperty("--cursor-x", `${(overlaySmoothX * 100).toFixed(2)}%`);
         overlay.style.setProperty("--cursor-y", `${(overlaySmoothY * 100).toFixed(2)}%`);
-        overlay.style.setProperty("--grid-shift-x", `${gridShiftX.toFixed(2)}px`);
-        overlay.style.setProperty("--grid-shift-y", `${gridShiftY.toFixed(2)}px`);
-        overlay.style.setProperty("--node-shift-x", `${nodeShiftX.toFixed(2)}px`);
-        overlay.style.setProperty("--node-shift-y", `${nodeShiftY.toFixed(2)}px`);
+        overlay.style.setProperty("--hover-alpha", `${clamp(overlayHover, 0, 1).toFixed(3)}`);
       }
 
       const PRELOADER_DURATION_MS = 3400;
@@ -827,10 +820,14 @@
       beginButton.addEventListener("click", begin);
       overlay.addEventListener("pointermove", (event) => {
         setOverlayPointerTarget(event.clientX, event.clientY);
+        overlayHoverTarget = 1;
+      });
+      overlay.addEventListener("pointerenter", (event) => {
+        setOverlayPointerTarget(event.clientX, event.clientY);
+        overlayHoverTarget = 1;
       });
       overlay.addEventListener("pointerleave", () => {
-        overlayTargetX = 0.5;
-        overlayTargetY = 0.5;
+        overlayHoverTarget = 0;
       });
       syncSoundPanel();
       updateFingerMeters(fingerEffectsFromHand(null));
