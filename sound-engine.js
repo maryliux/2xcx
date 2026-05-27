@@ -289,21 +289,6 @@ export async function setPlaybackFromGesture(shouldPlay) {
   return getAudioState();
 }
 
-export function seekToRatio(ratio) {
-  if (!mediaElement) {
-    return getAudioState();
-  }
-
-  const duration = getDuration();
-  if (duration <= 0) {
-    return getAudioState();
-  }
-
-  const targetRatio = clamp(ratio, 0, 1);
-  mediaElement.currentTime = targetRatio * duration;
-  return getAudioState();
-}
-
 export function updateSound(rightHand, leftHand) {
   void leftHand;
 
