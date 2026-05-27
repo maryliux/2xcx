@@ -36,11 +36,12 @@
         <button id="play-toggle-btn" type="button" disabled>play</button>
       </div>
       <p id="song-title">no track loaded</p>
+      <p id="upload-status">awaiting mp3 upload</p>
       <div id="song-progress-track">
         <div id="song-progress-fill"></div>
       </div>
       <p id="song-time">00:00 / 00:00</p>
-      <p id="song-hint">right pinch: play/pause · right hand controls pitch/synth</p>
+      <p id="song-hint">left hand open/play, closed/pause · right fingers control synth</p>
     </div>
 
     <input
@@ -57,6 +58,7 @@
         getAudioState,
         initAudio,
         loadAudioFile,
+        setPlaybackFromGesture,
         togglePlayback,
         updateSound,
       } from "./sound-engine.js";
@@ -74,6 +76,7 @@
       const songTime = document.getElementById("song-time");
       const songHint = document.getElementById("song-hint");
       const songProgressFill = document.getElementById("song-progress-fill");
+      const uploadStatus = document.getElementById("upload-status");
 
       let latestResults = null;
       let started = false;
@@ -81,10 +84,10 @@
       let hudVolume = 0;
       let previousHudVolume = 0;
       let hudHands = 0;
+      let uploadMessage = "awaiting mp3 upload";
 
       const gestureState = {
-        rightPinched: false,
-        lastToggleMs: 0,
+        leftPlaybackState: null,
       };
 
       function clamp(value, min, max) {
@@ -103,11 +106,20 @@
         return Math.hypot(dx, dy, dz);
       }
 
-      function isPinched(hand) {
-        if (!hand || !hand[4] || !hand[8]) {
-          return false;
+      function opennessFromHand(hand) {
+        if (!hand || !hand[0]) {
+          return 0;
         }
-        return distance3D(hand[4], hand[8]) < 0.05;
+
+        const tips = [4, 8, 12, 16, 20];
+        const wrist = hand[0];
+        let sum = 0;
+
+        tips.forEach((idx) => {
+          sum += distance3D(hand[idx], wrist);
+        });
+
+        return sum / tips.length;
       }
 
       function formatTime(seconds) {
@@ -133,7 +145,8 @@
 
         playToggleButton.disabled = !hasTrack;
         playToggleButton.textContent = audioState?.isPlaying ? "pause" : "play";
-        songHint.textContent = "right pinch: play/pause · right hand controls pitch/synth";
+        songHint.textContent = "left hand open/play, closed/pause · right fingers control synth";
+        uploadStatus.textContent = hasTrack ? `uploaded ✓ ${audioState.fileName}` : uploadMessage;
       }
 
       function selectHands(results) {
@@ -158,22 +171,29 @@
         return { rightHand, leftHand };
       }
 
-      function handleGesturePlayback(rightHand) {
-        const now = performance.now();
-        const rightPinched = isPinched(rightHand);
-
-        if (
-          rightPinched &&
-          !gestureState.rightPinched &&
-          now - gestureState.lastToggleMs > 420
-        ) {
-          gestureState.lastToggleMs = now;
-          togglePlayback().catch((error) => {
-            console.error("Gesture play/pause failed", error);
-          });
+      function handleLeftHandPlayback(leftHand) {
+        if (!leftHand) {
+          return;
         }
 
-        gestureState.rightPinched = rightPinched;
+        const openness = opennessFromHand(leftHand);
+        const OPEN_THRESHOLD = 0.225;
+        const CLOSE_THRESHOLD = 0.165;
+
+        if (openness >= OPEN_THRESHOLD && gestureState.leftPlaybackState !== true) {
+          gestureState.leftPlaybackState = true;
+          setPlaybackFromGesture(true).catch((error) => {
+            console.error("Left-hand play gesture failed", error);
+          });
+          return;
+        }
+
+        if (openness <= CLOSE_THRESHOLD && gestureState.leftPlaybackState !== false) {
+          gestureState.leftPlaybackState = false;
+          setPlaybackFromGesture(false).catch((error) => {
+            console.error("Left-hand pause gesture failed", error);
+          });
+        }
       }
 
       async function tuneExposure(stream) {
@@ -327,7 +347,7 @@
 
         const { rightHand, leftHand } = selectHands(latestResults);
         if (started) {
-          handleGesturePlayback(rightHand);
+          handleLeftHandPlayback(leftHand);
         }
 
         const metrics = updateSound(rightHand, leftHand);
@@ -358,12 +378,16 @@
 
         importAudioButton.disabled = true;
         importAudioButton.textContent = "loading...";
+        uploadMessage = "uploading mp3...";
+        updateSongIndicator(getAudioState());
 
         try {
           await loadAudioFile(file);
+          uploadMessage = `uploaded ✓ ${file.name}`;
           updateSongIndicator(getAudioState());
         } catch (error) {
           console.error("Import failed", error);
+          uploadMessage = "upload failed";
           songHint.textContent = "failed to load file";
         } finally {
           importAudioButton.disabled = false;

@@ -156,6 +156,14 @@ video {
   text-overflow: ellipsis;
 }
 
+#upload-status {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(111, 255, 176, 0.82);
+}
+
 #song-progress-track {
   position: relative;
   height: 5px;

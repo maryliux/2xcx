@@ -16,6 +16,7 @@ let initialized = false;
 let lastHz = 220;
 let lastVolume = 0;
 let smoothedPitch = 0;
+let lastGesturePlaybackState = null;
 
 const TIP_INDICES = [4, 8, 12, 16, 20];
 
@@ -48,6 +49,13 @@ function opennessFromHand(landmarks) {
   });
 
   return sum / TIP_INDICES.length;
+}
+
+function tipControl(hand, index) {
+  if (!hand || !hand[index]) {
+    return 0;
+  }
+  return 1 - clamp(hand[index].y, 0, 1);
 }
 
 function disposeMediaSource() {
@@ -216,6 +224,7 @@ export async function loadAudioFile(file) {
   mediaSource.connect(pitchShift);
   loadedTrackName = file.name || "imported track";
   smoothedPitch = 0;
+  lastGesturePlaybackState = null;
 
   return getAudioState();
 }
@@ -228,6 +237,26 @@ export async function togglePlayback() {
   if (mediaElement.paused) {
     await mediaElement.play();
   } else {
+    mediaElement.pause();
+  }
+
+  lastGesturePlaybackState = !mediaElement.paused;
+  return getAudioState();
+}
+
+export async function setPlaybackFromGesture(shouldPlay) {
+  if (!mediaElement) {
+    return getAudioState();
+  }
+
+  if (lastGesturePlaybackState === shouldPlay) {
+    return getAudioState();
+  }
+
+  lastGesturePlaybackState = shouldPlay;
+  if (shouldPlay && mediaElement.paused) {
+    await mediaElement.play();
+  } else if (!shouldPlay && !mediaElement.paused) {
     mediaElement.pause();
   }
 
@@ -251,18 +280,31 @@ export function updateSound(rightHand, leftHand) {
 
   if (rightHand && rightHand[0]) {
     const wristY = rightHand[0].y;
-    const wristX = rightHand[0].x;
     const openness = opennessFromHand(rightHand);
 
-    const hz = mapRange(wristY, 0, 1, 680, 90);
+    const thumbControl = tipControl(rightHand, 4);
+    const indexControl = tipControl(rightHand, 8);
+    const middleControl = tipControl(rightHand, 12);
+    const ringControl = tipControl(rightHand, 16);
+    const pinkyControl = tipControl(rightHand, 20);
+
+    const baseHz = mapRange(wristY, 0, 1, 680, 120);
+    const closePitchOffset = mapRange(openness, 0.05, 0.35, -250, 10);
+    const hz = clamp(baseHz + closePitchOffset, 50, 900);
+
     const volume = mapRange(openness, 0.05, 0.35, 0, 1);
-    const filterFreq = mapRange(openness, 0.05, 0.35, 320, 7600);
-    const wet = mapRange(wristX, 0, 1, 0.68, 0.08);
-    const targetPitch = mapRange(wristX, 0, 1, -8, 8);
+    const synthLevel = mapRange(thumbControl, 0, 1, 0.02, 0.32);
+    const filterFreq = mapRange(indexControl, 0, 1, 260, 8200);
+    const wet = mapRange(middleControl, 0, 1, 0.06, 0.75);
+    const ringPitch = mapRange(ringControl, 0, 1, -8, 8);
+    const closePitchBias = mapRange(openness, 0.05, 0.35, -5, 0);
+    const targetPitch = ringPitch + closePitchBias;
+    const oscVolumeDb = mapRange(pinkyControl, 0, 1, -30, -8);
 
     oscillator.frequency.rampTo(hz, 0.08);
+    oscillator.volume.rampTo(oscVolumeDb, 0.1);
     outputGain.gain.rampTo(volume, 0.05);
-    synthGain.gain.rampTo(0.05 + volume * 0.24, 0.08);
+    synthGain.gain.rampTo(synthLevel, 0.08);
     filter.frequency.rampTo(filterFreq, 0.1);
     reverb.wet.rampTo(wet, 0.1);
 
@@ -274,6 +316,7 @@ export function updateSound(rightHand, leftHand) {
   } else {
     outputGain.gain.rampTo(0, 0.08);
     synthGain.gain.rampTo(0.02, 0.1);
+    oscillator.volume.rampTo(-20, 0.12);
     filter.frequency.rampTo(1900, 0.12);
     reverb.wet.rampTo(0.2, 0.12);
     smoothedPitch += (0 - smoothedPitch) * 0.15;
