@@ -166,6 +166,11 @@ video {
   background: rgba(47, 184, 255, 0.12);
 }
 
+.effect-row {
+  display: grid;
+  gap: 5px;
+}
+
 .effect-toggle {
   display: flex;
   align-items: center;
@@ -179,6 +184,33 @@ video {
 .effect-toggle input {
   margin: 0;
   accent-color: #2fb8ff;
+}
+
+.effect-amount {
+  width: 100%;
+  margin: 0;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  outline: none;
+}
+
+.effect-amount::-webkit-slider-thumb {
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #2fb8ff;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+}
+
+.effect-amount::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #2fb8ff;
+  border: 1px solid rgba(255, 255, 255, 0.85);
 }
 
 #song-indicator {

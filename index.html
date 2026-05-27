@@ -45,22 +45,38 @@
 
       <div class="sound-panel-group">
         <p class="sound-panel-label">effects</p>
-        <label class="effect-toggle">
-          <input type="checkbox" data-effect="synth" checked />
-          <span>synth layer</span>
-        </label>
-        <label class="effect-toggle">
-          <input type="checkbox" data-effect="filter" checked />
-          <span>filter</span>
-        </label>
-        <label class="effect-toggle">
-          <input type="checkbox" data-effect="reverb" checked />
-          <span>reverb</span>
-        </label>
-        <label class="effect-toggle">
-          <input type="checkbox" data-effect="pitch" checked />
-          <span>pitch shift</span>
-        </label>
+
+        <div class="effect-row">
+          <label class="effect-toggle">
+            <input type="checkbox" data-effect="synth" checked />
+            <span>synth layer</span>
+          </label>
+          <input class="effect-amount" type="range" min="0" max="1" step="0.01" value="0.95" data-effect-amount="synth" />
+        </div>
+
+        <div class="effect-row">
+          <label class="effect-toggle">
+            <input type="checkbox" data-effect="filter" checked />
+            <span>filter</span>
+          </label>
+          <input class="effect-amount" type="range" min="0" max="1" step="0.01" value="1" data-effect-amount="filter" />
+        </div>
+
+        <div class="effect-row">
+          <label class="effect-toggle">
+            <input type="checkbox" data-effect="reverb" checked />
+            <span>reverb</span>
+          </label>
+          <input class="effect-amount" type="range" min="0" max="1" step="0.01" value="0.9" data-effect-amount="reverb" />
+        </div>
+
+        <div class="effect-row">
+          <label class="effect-toggle">
+            <input type="checkbox" data-effect="pitch" checked />
+            <span>pitch shift</span>
+          </label>
+          <input class="effect-amount" type="range" min="0" max="1" step="0.01" value="0.85" data-effect-amount="pitch" />
+        </div>
       </div>
     </aside>
 
@@ -75,7 +91,7 @@
         <div id="song-progress-fill"></div>
       </div>
       <p id="song-time">00:00 / 00:00</p>
-      <p id="song-hint">left hand open/play, closed/pause · side panel toggles instruments/effects</p>
+      <p id="song-hint">left hand open/play, closed/pause · side panel toggles + sliders shape sound</p>
     </div>
 
     <input
@@ -93,6 +109,7 @@
         getSoundConfig,
         initAudio,
         loadAudioFile,
+        setEffectAmount,
         setEffectEnabled,
         setInstrumentType,
         setPlaybackFromGesture,
@@ -116,6 +133,7 @@
       const uploadStatus = document.getElementById("upload-status");
       const instrumentButtons = Array.from(document.querySelectorAll("[data-instrument]"));
       const effectToggles = Array.from(document.querySelectorAll("[data-effect]"));
+      const effectAmountSliders = Array.from(document.querySelectorAll("[data-effect-amount]"));
 
       let latestResults = null;
       let started = false;
@@ -135,6 +153,22 @@
         return Math.min(max, Math.max(min, value));
       }
 
+      function effectAmountFromConfig(config, key) {
+        if (key === "synth") {
+          return config.synthAmount;
+        }
+        if (key === "filter") {
+          return config.filterAmount;
+        }
+        if (key === "reverb") {
+          return config.reverbAmount;
+        }
+        if (key === "pitch") {
+          return config.pitchAmount;
+        }
+        return 1;
+      }
+
       function syncSoundPanel(config = getSoundConfig()) {
         instrumentButtons.forEach((button) => {
           const active = button.dataset.instrument === config.instrument;
@@ -150,6 +184,12 @@
             (key === "reverb" && config.reverbEnabled) ||
             (key === "pitch" && config.pitchEnabled);
           toggle.checked = Boolean(checked);
+        });
+
+        effectAmountSliders.forEach((slider) => {
+          const key = slider.dataset.effectAmount;
+          const amount = effectAmountFromConfig(config, key);
+          slider.value = clamp(amount, 0, 1).toFixed(2);
         });
       }
 
@@ -248,7 +288,7 @@
 
         playToggleButton.disabled = !hasTrack;
         playToggleButton.textContent = audioState?.isPlaying ? "pause" : "play";
-        songHint.textContent = "left hand open = play, closed = pause · side panel toggles instruments/effects";
+        songHint.textContent = "left hand open = play, closed = pause · side panel toggles + sliders shape sound";
         uploadStatus.textContent = uploadMessage;
       }
 
@@ -467,7 +507,7 @@
         } catch (error) {
           console.error("Import failed", error);
           uploadMessage = "upload successful";
-          songHint.textContent = "left hand open = play, closed = pause · side panel toggles instruments/effects";
+          songHint.textContent = "left hand open = play, closed = pause · side panel toggles + sliders shape sound";
           updateSongIndicator(getAudioState());
         } finally {
           importAudioButton.disabled = false;
@@ -495,6 +535,20 @@
           setEffectEnabled(effect, toggle.checked);
           syncSoundPanel();
         });
+      });
+
+      effectAmountSliders.forEach((slider) => {
+        const applySliderAmount = () => {
+          const effect = slider.dataset.effectAmount;
+          if (!effect) {
+            return;
+          }
+          const amount = Number.parseFloat(slider.value);
+          setEffectAmount(effect, Number.isFinite(amount) ? amount : 0);
+        };
+
+        slider.addEventListener("input", applySliderAmount);
+        slider.addEventListener("change", applySliderAmount);
       });
 
       playToggleButton.addEventListener("click", async () => {

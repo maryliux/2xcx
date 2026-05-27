@@ -26,9 +26,13 @@ const INSTRUMENT_TYPES = new Set(["sine", "triangle", "sawtooth", "square"]);
 const soundConfig = {
   instrument: "sine",
   synthEnabled: true,
+  synthAmount: 0.95,
   filterEnabled: true,
+  filterAmount: 1,
   reverbEnabled: true,
+  reverbAmount: 0.9,
   pitchEnabled: true,
+  pitchAmount: 0.85,
 };
 
 function applySoundConfig() {
@@ -38,21 +42,25 @@ function applySoundConfig() {
 
   oscillator.type = soundConfig.instrument;
 
-  if (!soundConfig.synthEnabled) {
+  const synthDepth = soundConfig.synthEnabled ? soundConfig.synthAmount : 0;
+  if (synthDepth <= 0) {
     synthGain.gain.rampTo(0, 0.08);
   }
 
-  if (!soundConfig.filterEnabled) {
+  const filterDepth = soundConfig.filterEnabled ? soundConfig.filterAmount : 0;
+  if (filterDepth <= 0) {
     filter.frequency.rampTo(18000, 0.08);
     filter.Q.rampTo(0.0001, 0.08);
   }
 
-  if (!soundConfig.reverbEnabled) {
+  const reverbDepth = soundConfig.reverbEnabled ? soundConfig.reverbAmount : 0;
+  if (reverbDepth <= 0) {
     reverb.wet.rampTo(0, 0.08);
   }
 
-  if (soundConfig.pitchEnabled) {
-    pitchShift.wet.rampTo(1, 0.08);
+  const pitchDepth = soundConfig.pitchEnabled ? soundConfig.pitchAmount : 0;
+  if (pitchDepth > 0) {
+    pitchShift.wet.rampTo(clamp(mapRange(pitchDepth, 0, 1, 0.15, 1), 0, 1), 0.08);
   } else {
     smoothedPitch = 0;
     pitchShift.pitch = 0;
@@ -231,6 +239,23 @@ export function setEffectEnabled(effectKey, enabled) {
   return getSoundConfig();
 }
 
+export function setEffectAmount(effectKey, amount) {
+  const nextAmount = clamp(Number.isFinite(amount) ? amount : 0, 0, 1);
+
+  if (effectKey === "synth") {
+    soundConfig.synthAmount = nextAmount;
+  } else if (effectKey === "filter") {
+    soundConfig.filterAmount = nextAmount;
+  } else if (effectKey === "reverb") {
+    soundConfig.reverbAmount = nextAmount;
+  } else if (effectKey === "pitch") {
+    soundConfig.pitchAmount = nextAmount;
+  }
+
+  applySoundConfig();
+  return getSoundConfig();
+}
+
 export async function initAudio() {
   ToneLib = globalThis.Tone;
   if (!ToneLib) {
@@ -395,24 +420,32 @@ export function updateSound(rightHand, leftHand) {
     const hz = clamp(baseHz + closePitchOffset, 50, 900);
 
     const volume = mapRange(openness, RIGHT_CLOSED_OPENNESS, RIGHT_OPEN_OPENNESS, 0, 1);
-    const synthLevel = mapRange(thumbControl, 0, 1, 0.02, 0.32);
-    const filterFreq = mapRange(indexControl, 0, 1, 260, 8200);
-    const wet = mapRange(middleControl, 0, 1, 0.06, 0.75);
-    const ringPitch = mapRange(ringControl, 0, 1, -8, 8);
+    const synthLevel = mapRange(thumbControl, 0, 1, 0.03, 0.45);
+    const baseFilterFreq = mapRange(indexControl, 0, 1, 140, 9000);
+    const wet = mapRange(middleControl, 0, 1, 0.08, 0.95);
+    const ringPitch = mapRange(ringControl, 0, 1, -14, 14);
     const closePitchBias = mapRange(
       openness,
       RIGHT_CLOSED_OPENNESS,
       RIGHT_OPEN_OPENNESS,
-      -5,
+      -8,
       0
     );
-    const targetPitch = ringPitch + closePitchBias;
-    const oscVolumeDb = mapRange(pinkyControl, 0, 1, -30, -8);
+    const oscVolumeDb = mapRange(pinkyControl, 0, 1, -24, -2);
 
-    const synthTarget = soundConfig.synthEnabled ? synthLevel : 0;
-    const filterTarget = soundConfig.filterEnabled ? filterFreq : 18000;
-    const filterQ = soundConfig.filterEnabled ? 0.8 : 0.0001;
-    const reverbTarget = soundConfig.reverbEnabled ? wet : 0;
+    const synthDepth = soundConfig.synthEnabled ? soundConfig.synthAmount : 0;
+    const synthTarget = clamp(synthLevel * mapRange(synthDepth, 0, 1, 0, 2.2), 0, 1);
+
+    const filterDepth = soundConfig.filterEnabled ? soundConfig.filterAmount : 0;
+    const filterTarget = clamp(baseFilterFreq * filterDepth + 18000 * (1 - filterDepth), 80, 18000);
+    const filterQ = mapRange(filterDepth, 0, 1, 0.0001, 8);
+
+    const reverbDepth = soundConfig.reverbEnabled ? soundConfig.reverbAmount : 0;
+    const reverbTarget = clamp(wet * mapRange(reverbDepth, 0, 1, 0, 1.35), 0, 1);
+
+    const pitchDepth = soundConfig.pitchEnabled ? soundConfig.pitchAmount : 0;
+    const targetPitch = (ringPitch + closePitchBias) * mapRange(pitchDepth, 0, 1, 0, 2.2);
+    const pitchWet = soundConfig.pitchEnabled ? clamp(mapRange(pitchDepth, 0, 1, 0.15, 1), 0, 1) : 0;
 
     oscillator.frequency.rampTo(hz, 0.08);
     oscillator.volume.rampTo(oscVolumeDb, 0.1);
@@ -422,9 +455,9 @@ export function updateSound(rightHand, leftHand) {
     reverb.wet.rampTo(reverbTarget, 0.1);
     gainNode.gain.rampTo(volume, 0.05);
 
-    if (soundConfig.pitchEnabled) {
-      smoothedPitch += (targetPitch - smoothedPitch) * 0.2;
-      pitchShift.wet.rampTo(1, 0.1);
+    if (soundConfig.pitchEnabled && pitchDepth > 0) {
+      smoothedPitch += (targetPitch - smoothedPitch) * 0.24;
+      pitchShift.wet.rampTo(pitchWet, 0.1);
       pitchShift.pitch = smoothedPitch;
     } else {
       smoothedPitch = 0;
@@ -435,15 +468,20 @@ export function updateSound(rightHand, leftHand) {
     lastHz = hz;
     lastVolume = volume;
   } else {
-    synthGain.gain.rampTo(soundConfig.synthEnabled ? 0.02 : 0, 0.1);
-    oscillator.volume.rampTo(-20, 0.12);
-    filter.frequency.rampTo(soundConfig.filterEnabled ? 1900 : 18000, 0.12);
-    filter.Q.rampTo(soundConfig.filterEnabled ? 0.8 : 0.0001, 0.12);
-    reverb.wet.rampTo(soundConfig.reverbEnabled ? 0.2 : 0, 0.12);
+    const idleSynthDepth = soundConfig.synthEnabled ? soundConfig.synthAmount : 0;
+    const idleFilterDepth = soundConfig.filterEnabled ? soundConfig.filterAmount : 0;
+    const idleReverbDepth = soundConfig.reverbEnabled ? soundConfig.reverbAmount : 0;
+    const idlePitchDepth = soundConfig.pitchEnabled ? soundConfig.pitchAmount : 0;
 
-    if (soundConfig.pitchEnabled) {
+    synthGain.gain.rampTo(mapRange(idleSynthDepth, 0, 1, 0, 0.05), 0.1);
+    oscillator.volume.rampTo(-20, 0.12);
+    filter.frequency.rampTo(1900 * idleFilterDepth + 18000 * (1 - idleFilterDepth), 0.12);
+    filter.Q.rampTo(mapRange(idleFilterDepth, 0, 1, 0.0001, 6), 0.12);
+    reverb.wet.rampTo(mapRange(idleReverbDepth, 0, 1, 0, 0.35), 0.12);
+
+    if (soundConfig.pitchEnabled && idlePitchDepth > 0) {
       smoothedPitch += (0 - smoothedPitch) * 0.15;
-      pitchShift.wet.rampTo(1, 0.1);
+      pitchShift.wet.rampTo(mapRange(idlePitchDepth, 0, 1, 0.15, 1), 0.1);
       pitchShift.pitch = smoothedPitch;
     } else {
       smoothedPitch = 0;
