@@ -1,14 +1,16 @@
-const CELL_SIZE = 6;
+const CELL_SIZE = 7;
 const SAMPLE_STRIDE = 1;
 
 const BACKGROUND_COLOR = "#000000";
-const DOT_COLOR = "#ffffff";
-const DOT_ALPHA = 0.98;
-const MIN_RADIUS = 0.5;
-const MAX_RADIUS = 1.9;
+const LINE_COLOR = "rgba(143, 200, 169, 0.38)";
+const LINE_COLOR_STRONG = "rgba(244, 248, 255, 0.34)";
+const NODE_COLOR = "#f4f8ff";
+
+const MIN_NODE_RADIUS = 0.8;
+const MAX_NODE_RADIUS = 2.0;
 
 const DIFF_THRESHOLD = 0.07;
-const FOREGROUND_MIN = 0.22;
+const FOREGROUND_MIN = 0.2;
 const BG_ADAPT_FAST = 0.045;
 const BG_ADAPT_SLOW = 0.002;
 
@@ -87,6 +89,16 @@ function ensureBackgroundModel(cols, rows) {
   }
 }
 
+function drawDiamond(ctx, cx, cy, radius) {
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - radius);
+  ctx.lineTo(cx + radius, cy);
+  ctx.lineTo(cx, cy + radius);
+  ctx.lineTo(cx - radius, cy);
+  ctx.closePath();
+  ctx.fill();
+}
+
 export function drawHalftone(ctx, video, canvasW, canvasH) {
   if (!offCtx || video.readyState < 2) {
     return;
@@ -105,8 +117,9 @@ export function drawHalftone(ctx, video, canvasW, canvasH) {
   ensureBackgroundModel(cols, rows);
 
   const luma = new Float32Array(cols * rows);
-  let lumaSum = 0;
+  const active = new Float32Array(cols * rows);
 
+  let lumaSum = 0;
   for (let gy = 0; gy < rows; gy += 1) {
     for (let gx = 0; gx < cols; gx += 1) {
       const idx = gy * cols + gx;
@@ -130,9 +143,6 @@ export function drawHalftone(ctx, video, canvasW, canvasH) {
   ctx.fillStyle = BACKGROUND_COLOR;
   ctx.fillRect(0, 0, canvasW, canvasH);
 
-  ctx.globalAlpha = DOT_ALPHA;
-  ctx.fillStyle = DOT_COLOR;
-
   for (let gy = 0; gy < rows; gy += 1) {
     for (let gx = 0; gx < cols; gx += 1) {
       const idx = gy * cols + gx;
@@ -152,20 +162,102 @@ export function drawHalftone(ctx, video, canvasW, canvasH) {
       }
 
       const dither = (BAYER_4X4[(gy & 3) * 4 + (gx & 3)] + 0.5) / 16;
-      const presence = clamp(foregroundScore * 1.1, 0, 1);
-      if (presence < dither * 0.92) {
+      const presence = clamp(foregroundScore * 1.15, 0, 1);
+      if (presence < dither * 0.86) {
         continue;
       }
 
-      const radius =
-        MIN_RADIUS +
-        clamp(foregroundScore, 0, 1) * (MAX_RADIUS - MIN_RADIUS);
+      active[idx] = presence;
+    }
+  }
+
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  ctx.beginPath();
+  for (let gy = 0; gy < rows; gy += 1) {
+    for (let gx = 0; gx < cols; gx += 1) {
+      const idx = gy * cols + gx;
+      const p = active[idx];
+      if (p <= 0.22) {
+        continue;
+      }
+
       const cx = gx * CELL_SIZE + CELL_SIZE * 0.5;
       const cy = gy * CELL_SIZE + CELL_SIZE * 0.5;
 
-      ctx.beginPath();
-      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-      ctx.fill();
+      if (gx + 1 < cols) {
+        const right = active[idx + 1];
+        if (right > 0.22) {
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(cx + CELL_SIZE, cy);
+        }
+      }
+
+      if (gy + 1 < rows) {
+        const down = active[idx + cols];
+        if (down > 0.22) {
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(cx, cy + CELL_SIZE);
+        }
+      }
+    }
+  }
+  ctx.globalAlpha = 0.9;
+  ctx.strokeStyle = LINE_COLOR;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.beginPath();
+  for (let gy = 0; gy < rows; gy += 1) {
+    for (let gx = 0; gx < cols; gx += 1) {
+      const idx = gy * cols + gx;
+      const p = active[idx];
+      if (p <= 0.55) {
+        continue;
+      }
+
+      const cx = gx * CELL_SIZE + CELL_SIZE * 0.5;
+      const cy = gy * CELL_SIZE + CELL_SIZE * 0.5;
+
+      if (gx + 1 < cols && active[idx + 1] > 0.55) {
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + CELL_SIZE, cy);
+      }
+
+      if (gy + 1 < rows && active[idx + cols] > 0.55) {
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx, cy + CELL_SIZE);
+      }
+    }
+  }
+  ctx.globalAlpha = 0.75;
+  ctx.strokeStyle = LINE_COLOR_STRONG;
+  ctx.lineWidth = 1.25;
+  ctx.stroke();
+
+  ctx.fillStyle = NODE_COLOR;
+  for (let gy = 0; gy < rows; gy += 1) {
+    for (let gx = 0; gx < cols; gx += 1) {
+      const idx = gy * cols + gx;
+      const p = active[idx];
+      if (p <= 0.22) {
+        continue;
+      }
+
+      const cx = gx * CELL_SIZE + CELL_SIZE * 0.5;
+      const cy = gy * CELL_SIZE + CELL_SIZE * 0.5;
+      const radius = MIN_NODE_RADIUS + p * (MAX_NODE_RADIUS - MIN_NODE_RADIUS);
+
+      ctx.globalAlpha = 0.34 + p * 0.58;
+      drawDiamond(ctx, cx, cy, radius);
+
+      if (p > 0.72) {
+        ctx.globalAlpha = 0.68;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius * 0.26, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
   }
 
