@@ -240,54 +240,6 @@
         return { rightHand, leftHand };
       }
 
-      function loadExternalScript(url) {
-        return new Promise((resolve, reject) => {
-          const existing = Array.from(document.scripts).find((s) => s.src === url);
-          if (existing) {
-            if (existing.dataset.loaded === "true") {
-              resolve();
-              return;
-            }
-            existing.addEventListener("load", () => resolve(), { once: true });
-            existing.addEventListener("error", () => reject(new Error(`Failed to load ${url}`)), {
-              once: true,
-            });
-            return;
-          }
-
-          const script = document.createElement("script");
-          script.src = url;
-          script.async = true;
-          script.addEventListener(
-            "load",
-            () => {
-              script.dataset.loaded = "true";
-              resolve();
-            },
-            { once: true }
-          );
-          script.addEventListener(
-            "error",
-            () => reject(new Error(`Failed to load ${url}`)),
-            { once: true }
-          );
-          document.head.appendChild(script);
-        });
-      }
-
-      async function ensureMediaPipeRuntime() {
-        if (globalThis.Hands && globalThis.Camera) {
-          return;
-        }
-
-        await loadExternalScript("https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js");
-        await loadExternalScript("https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js");
-
-        if (!globalThis.Hands || !globalThis.Camera) {
-          throw new Error("MediaPipe runtime failed to initialize.");
-        }
-      }
-
       function handleLeftHandPlayback(leftHand) {
         if (!leftHand) {
           return;
@@ -327,7 +279,6 @@
         try {
           await globalThis.Tone.start();
           await initAudio();
-          await ensureMediaPipeRuntime();
 
           await initTracker(video, (results) => {
             latestResults = results;
