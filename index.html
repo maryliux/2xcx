@@ -23,7 +23,41 @@
     <video id="feed" playsinline></video>
 
     <div id="preloader" aria-hidden="true">
-      <img id="preloader-svg" src="./preloader.svg" alt="" aria-hidden="true" />
+      <div id="preloader-visual">
+        <svg id="preloader-headphones" viewBox="0 0 700 900" aria-hidden="true">
+          <defs>
+            <pattern id="dot-fill" patternUnits="userSpaceOnUse" width="10" height="10">
+              <circle cx="3" cy="3" r="2.1" fill="#ffffff" />
+            </pattern>
+            <filter id="soft-dot-glow" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="1.2" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+
+          <g class="wire-layer" filter="url(#soft-dot-glow)">
+            <path class="wire wire-a" d="M252 132 C316 198 362 240 398 307" pathLength="460" />
+            <path class="wire wire-b" d="M435 106 C447 187 442 246 417 326" pathLength="430" />
+            <path class="wire wire-c" d="M398 307 C340 420 333 548 383 661 C432 768 542 809 621 755" pathLength="980" />
+            <path class="wire wire-d" d="M418 326 C472 440 563 546 610 690 C642 787 580 870 472 878" pathLength="1020" />
+            <path class="wire wire-e" d="M398 307 C246 372 126 486 89 624 C59 734 111 824 232 838 C314 848 348 822 371 784" pathLength="1120" />
+            <path class="wire wire-f" d="M371 784 C438 718 521 689 565 731 C618 783 571 862 476 850 C428 844 390 822 358 787" pathLength="930" />
+          </g>
+
+          <g class="hardware-layer" filter="url(#soft-dot-glow)">
+            <ellipse class="hardware dotted-shape" cx="226" cy="108" rx="36" ry="28" transform="rotate(-18 226 108)" />
+            <ellipse class="hardware dotted-shape" cx="428" cy="78" rx="28" ry="38" transform="rotate(13 428 78)" />
+            <circle class="hardware dotted-shape" cx="438" cy="62" r="10" />
+            <rect class="hardware dotted-shape" x="582" y="343" width="26" height="82" rx="11" transform="rotate(20 595 384)" />
+            <rect class="hardware dotted-shape" x="601" y="392" width="13" height="24" rx="4" transform="rotate(20 607 404)" />
+            <rect class="hardware dotted-shape" x="76" y="438" width="16" height="40" rx="4" transform="rotate(33 84 458)" />
+            <rect class="hardware dotted-shape" x="90" y="428" width="24" height="16" rx="3" transform="rotate(33 102 436)" />
+          </g>
+        </svg>
+      </div>
     </div>
 
     <div id="overlay">
@@ -240,7 +274,7 @@
         return Math.min(max, Math.max(min, value));
       }
 
-      const PRELOADER_DURATION_MS = 3000;
+      const PRELOADER_DURATION_MS = 3400;
 
       function dismissPreloader() {
         if (!preloader || preloader.dataset.dismissed === "true") {
