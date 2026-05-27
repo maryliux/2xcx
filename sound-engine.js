@@ -22,6 +22,44 @@ const TIP_INDICES = [4, 8, 12, 16, 20];
 const RIGHT_CLOSED_OPENNESS = 0.09;
 const RIGHT_OPEN_OPENNESS = 0.33;
 
+const INSTRUMENT_TYPES = new Set(["sine", "triangle", "sawtooth", "square"]);
+const soundConfig = {
+  instrument: "sine",
+  synthEnabled: true,
+  filterEnabled: true,
+  reverbEnabled: true,
+  pitchEnabled: true,
+};
+
+function applySoundConfig() {
+  if (!initialized || !oscillator || !synthGain || !filter || !reverb || !pitchShift) {
+    return;
+  }
+
+  oscillator.type = soundConfig.instrument;
+
+  if (!soundConfig.synthEnabled) {
+    synthGain.gain.rampTo(0, 0.08);
+  }
+
+  if (!soundConfig.filterEnabled) {
+    filter.frequency.rampTo(18000, 0.08);
+    filter.Q.rampTo(0.0001, 0.08);
+  }
+
+  if (!soundConfig.reverbEnabled) {
+    reverb.wet.rampTo(0, 0.08);
+  }
+
+  if (soundConfig.pitchEnabled) {
+    pitchShift.wet.rampTo(1, 0.08);
+  } else {
+    smoothedPitch = 0;
+    pitchShift.pitch = 0;
+    pitchShift.wet.rampTo(0, 0.08);
+  }
+}
+
 function hasRequiredLandmarks(hand, indices) {
   if (!hand) {
     return false;
@@ -162,6 +200,37 @@ export function getAudioState() {
   };
 }
 
+export function getSoundConfig() {
+  return { ...soundConfig };
+}
+
+export function setInstrumentType(type) {
+  if (!INSTRUMENT_TYPES.has(type)) {
+    return getSoundConfig();
+  }
+
+  soundConfig.instrument = type;
+  applySoundConfig();
+  return getSoundConfig();
+}
+
+export function setEffectEnabled(effectKey, enabled) {
+  const nextValue = Boolean(enabled);
+
+  if (effectKey === "synth") {
+    soundConfig.synthEnabled = nextValue;
+  } else if (effectKey === "filter") {
+    soundConfig.filterEnabled = nextValue;
+  } else if (effectKey === "reverb") {
+    soundConfig.reverbEnabled = nextValue;
+  } else if (effectKey === "pitch") {
+    soundConfig.pitchEnabled = nextValue;
+  }
+
+  applySoundConfig();
+  return getSoundConfig();
+}
+
 export async function initAudio() {
   ToneLib = globalThis.Tone;
   if (!ToneLib) {
@@ -197,6 +266,7 @@ export async function initAudio() {
   oscillator.start();
 
   initialized = true;
+  applySoundConfig();
 }
 
 export async function loadAudioFile(file) {
@@ -339,25 +409,47 @@ export function updateSound(rightHand, leftHand) {
     const targetPitch = ringPitch + closePitchBias;
     const oscVolumeDb = mapRange(pinkyControl, 0, 1, -30, -8);
 
+    const synthTarget = soundConfig.synthEnabled ? synthLevel : 0;
+    const filterTarget = soundConfig.filterEnabled ? filterFreq : 18000;
+    const filterQ = soundConfig.filterEnabled ? 0.8 : 0.0001;
+    const reverbTarget = soundConfig.reverbEnabled ? wet : 0;
+
     oscillator.frequency.rampTo(hz, 0.08);
     oscillator.volume.rampTo(oscVolumeDb, 0.1);
-    synthGain.gain.rampTo(synthLevel, 0.08);
-    filter.frequency.rampTo(filterFreq, 0.1);
-    reverb.wet.rampTo(wet, 0.1);
+    synthGain.gain.rampTo(synthTarget, 0.08);
+    filter.frequency.rampTo(filterTarget, 0.1);
+    filter.Q.rampTo(filterQ, 0.1);
+    reverb.wet.rampTo(reverbTarget, 0.1);
     gainNode.gain.rampTo(volume, 0.05);
 
-    smoothedPitch += (targetPitch - smoothedPitch) * 0.2;
-    pitchShift.pitch = smoothedPitch;
+    if (soundConfig.pitchEnabled) {
+      smoothedPitch += (targetPitch - smoothedPitch) * 0.2;
+      pitchShift.wet.rampTo(1, 0.1);
+      pitchShift.pitch = smoothedPitch;
+    } else {
+      smoothedPitch = 0;
+      pitchShift.wet.rampTo(0, 0.1);
+      pitchShift.pitch = 0;
+    }
 
     lastHz = hz;
     lastVolume = volume;
   } else {
-    synthGain.gain.rampTo(0.02, 0.1);
+    synthGain.gain.rampTo(soundConfig.synthEnabled ? 0.02 : 0, 0.1);
     oscillator.volume.rampTo(-20, 0.12);
-    filter.frequency.rampTo(1900, 0.12);
-    reverb.wet.rampTo(0.2, 0.12);
-    smoothedPitch += (0 - smoothedPitch) * 0.15;
-    pitchShift.pitch = smoothedPitch;
+    filter.frequency.rampTo(soundConfig.filterEnabled ? 1900 : 18000, 0.12);
+    filter.Q.rampTo(soundConfig.filterEnabled ? 0.8 : 0.0001, 0.12);
+    reverb.wet.rampTo(soundConfig.reverbEnabled ? 0.2 : 0, 0.12);
+
+    if (soundConfig.pitchEnabled) {
+      smoothedPitch += (0 - smoothedPitch) * 0.15;
+      pitchShift.wet.rampTo(1, 0.1);
+      pitchShift.pitch = smoothedPitch;
+    } else {
+      smoothedPitch = 0;
+      pitchShift.wet.rampTo(0, 0.1);
+      pitchShift.pitch = 0;
+    }
   }
 
   return {

@@ -30,6 +30,40 @@
       </div>
     </div>
 
+    <aside id="sound-panel" aria-label="sound controls">
+      <p class="sound-panel-title">sound lab</p>
+
+      <div class="sound-panel-group">
+        <p class="sound-panel-label">instrument</p>
+        <div class="instrument-grid">
+          <button type="button" class="sound-toggle is-active" data-instrument="sine" aria-pressed="true">sine</button>
+          <button type="button" class="sound-toggle" data-instrument="triangle" aria-pressed="false">triangle</button>
+          <button type="button" class="sound-toggle" data-instrument="sawtooth" aria-pressed="false">saw</button>
+          <button type="button" class="sound-toggle" data-instrument="square" aria-pressed="false">square</button>
+        </div>
+      </div>
+
+      <div class="sound-panel-group">
+        <p class="sound-panel-label">effects</p>
+        <label class="effect-toggle">
+          <input type="checkbox" data-effect="synth" checked />
+          <span>synth layer</span>
+        </label>
+        <label class="effect-toggle">
+          <input type="checkbox" data-effect="filter" checked />
+          <span>filter</span>
+        </label>
+        <label class="effect-toggle">
+          <input type="checkbox" data-effect="reverb" checked />
+          <span>reverb</span>
+        </label>
+        <label class="effect-toggle">
+          <input type="checkbox" data-effect="pitch" checked />
+          <span>pitch shift</span>
+        </label>
+      </div>
+    </aside>
+
     <div id="song-indicator">
       <div id="song-controls">
         <button id="import-audio-btn" type="button">import mp3</button>
@@ -41,7 +75,7 @@
         <div id="song-progress-fill"></div>
       </div>
       <p id="song-time">00:00 / 00:00</p>
-      <p id="song-hint">left hand open/play, closed/pause · right fingers control synth</p>
+      <p id="song-hint">left hand open/play, closed/pause · side panel toggles instruments/effects</p>
     </div>
 
     <input
@@ -56,8 +90,11 @@
       import { drawHands, initTracker } from "./hand-tracker.js";
       import {
         getAudioState,
+        getSoundConfig,
         initAudio,
         loadAudioFile,
+        setEffectEnabled,
+        setInstrumentType,
         setPlaybackFromGesture,
         togglePlayback,
         updateSound,
@@ -77,6 +114,8 @@
       const songHint = document.getElementById("song-hint");
       const songProgressFill = document.getElementById("song-progress-fill");
       const uploadStatus = document.getElementById("upload-status");
+      const instrumentButtons = Array.from(document.querySelectorAll("[data-instrument]"));
+      const effectToggles = Array.from(document.querySelectorAll("[data-effect]"));
 
       let latestResults = null;
       let started = false;
@@ -94,6 +133,24 @@
 
       function clamp(value, min, max) {
         return Math.min(max, Math.max(min, value));
+      }
+
+      function syncSoundPanel(config = getSoundConfig()) {
+        instrumentButtons.forEach((button) => {
+          const active = button.dataset.instrument === config.instrument;
+          button.classList.toggle("is-active", active);
+          button.setAttribute("aria-pressed", String(active));
+        });
+
+        effectToggles.forEach((toggle) => {
+          const key = toggle.dataset.effect;
+          const checked =
+            (key === "synth" && config.synthEnabled) ||
+            (key === "filter" && config.filterEnabled) ||
+            (key === "reverb" && config.reverbEnabled) ||
+            (key === "pitch" && config.pitchEnabled);
+          toggle.checked = Boolean(checked);
+        });
       }
 
       function resize() {
@@ -191,7 +248,7 @@
 
         playToggleButton.disabled = !hasTrack;
         playToggleButton.textContent = audioState?.isPlaying ? "pause" : "play";
-        songHint.textContent = "left hand open = play, closed = pause · right fingers control synth";
+        songHint.textContent = "left hand open = play, closed = pause · side panel toggles instruments/effects";
         uploadStatus.textContent = uploadMessage;
       }
 
@@ -410,12 +467,34 @@
         } catch (error) {
           console.error("Import failed", error);
           uploadMessage = "upload successful";
-          songHint.textContent = "left hand open = play, closed = pause · right fingers control synth";
+          songHint.textContent = "left hand open = play, closed = pause · side panel toggles instruments/effects";
           updateSongIndicator(getAudioState());
         } finally {
           importAudioButton.disabled = false;
           importAudioButton.textContent = "import mp3";
         }
+      });
+
+      instrumentButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          const instrument = button.dataset.instrument;
+          if (!instrument) {
+            return;
+          }
+          setInstrumentType(instrument);
+          syncSoundPanel();
+        });
+      });
+
+      effectToggles.forEach((toggle) => {
+        toggle.addEventListener("change", () => {
+          const effect = toggle.dataset.effect;
+          if (!effect) {
+            return;
+          }
+          setEffectEnabled(effect, toggle.checked);
+          syncSoundPanel();
+        });
       });
 
       playToggleButton.addEventListener("click", async () => {
@@ -434,6 +513,7 @@
       resize();
       window.addEventListener("resize", resize);
       beginButton.addEventListener("click", begin);
+      syncSoundPanel();
       updateSongIndicator(getAudioState());
       requestAnimationFrame(frame);
     </script>

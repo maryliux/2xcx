@@ -102,6 +102,85 @@ video {
   opacity: 0.58;
 }
 
+#sound-panel {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 10;
+  width: min(220px, calc(100% - 24px));
+  display: grid;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(5, 10, 20, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.sound-panel-title,
+.sound-panel-label {
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.sound-panel-title {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.sound-panel-group {
+  display: grid;
+  gap: 6px;
+}
+
+.sound-panel-label {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.instrument-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.sound-toggle {
+  font-family: "Space Grotesk", Arial, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.84);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  padding: 5px 8px;
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease, background 140ms ease;
+}
+
+.sound-toggle.is-active {
+  color: #2fb8ff;
+  border-color: rgba(47, 184, 255, 0.9);
+  background: rgba(47, 184, 255, 0.12);
+}
+
+.effect-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.effect-toggle input {
+  margin: 0;
+  accent-color: #2fb8ff;
+}
+
 #song-indicator {
   position: absolute;
   left: 50%;
@@ -189,4 +268,13 @@ video {
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.52);
+}
+
+@media (max-width: 820px) {
+  #sound-panel {
+    top: auto;
+    bottom: 152px;
+    right: 12px;
+    width: min(250px, calc(100% - 24px));
+  }
 }
