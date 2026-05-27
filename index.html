@@ -88,6 +88,8 @@
 
       const gestureState = {
         leftPlaybackState: null,
+        leftOpenScore: 1.15,
+        leftOpenVelocity: 0,
       };
 
       function clamp(value, min, max) {
@@ -107,19 +109,36 @@
       }
 
       function opennessFromHand(hand) {
-        if (!hand || !hand[0]) {
+        if (!hand || !hand[0] || !hand[5] || !hand[17]) {
           return 0;
         }
 
-        const tips = [4, 8, 12, 16, 20];
-        const wrist = hand[0];
-        let sum = 0;
+        const palmIndices = [0, 5, 9, 13, 17];
+        let cx = 0;
+        let cy = 0;
+        let cz = 0;
 
-        tips.forEach((idx) => {
-          sum += distance3D(hand[idx], wrist);
+        palmIndices.forEach((idx) => {
+          cx += hand[idx].x;
+          cy += hand[idx].y;
+          cz += hand[idx].z || 0;
         });
 
-        return sum / tips.length;
+        const center = {
+          x: cx / palmIndices.length,
+          y: cy / palmIndices.length,
+          z: cz / palmIndices.length,
+        };
+
+        const tips = [4, 8, 12, 16, 20];
+        let tipDistanceSum = 0;
+        tips.forEach((idx) => {
+          tipDistanceSum += distance3D(hand[idx], center);
+        });
+
+        const palmWidth = Math.max(distance3D(hand[5], hand[17]), 0.0001);
+        const normalizedSpread = (tipDistanceSum / tips.length) / palmWidth;
+        return normalizedSpread;
       }
 
       function formatTime(seconds) {
@@ -146,7 +165,7 @@
         playToggleButton.disabled = !hasTrack;
         playToggleButton.textContent = audioState?.isPlaying ? "pause" : "play";
         songHint.textContent = "left hand open/play, closed/pause · right fingers control synth";
-        uploadStatus.textContent = hasTrack ? `uploaded ✓ ${audioState.fileName}` : uploadMessage;
+        uploadStatus.textContent = hasTrack ? `uploaded file: ${audioState.fileName}` : uploadMessage;
       }
 
       function selectHands(results) {
@@ -176,11 +195,22 @@
           return;
         }
 
-        const openness = opennessFromHand(leftHand);
-        const OPEN_THRESHOLD = 0.225;
-        const CLOSE_THRESHOLD = 0.165;
+        const rawOpenness = opennessFromHand(leftHand);
+        const prevScore = gestureState.leftOpenScore;
+        const smoothedScore = prevScore * 0.72 + rawOpenness * 0.28;
+        const velocity = smoothedScore - prevScore;
 
-        if (openness >= OPEN_THRESHOLD && gestureState.leftPlaybackState !== true) {
+        gestureState.leftOpenScore = smoothedScore;
+        gestureState.leftOpenVelocity = velocity;
+
+        const OPEN_THRESHOLD = 1.22;
+        const CLOSE_THRESHOLD = 0.94;
+
+        if (
+          smoothedScore >= OPEN_THRESHOLD &&
+          velocity >= -0.02 &&
+          gestureState.leftPlaybackState !== true
+        ) {
           gestureState.leftPlaybackState = true;
           setPlaybackFromGesture(true).catch((error) => {
             console.error("Left-hand play gesture failed", error);
@@ -188,7 +218,11 @@
           return;
         }
 
-        if (openness <= CLOSE_THRESHOLD && gestureState.leftPlaybackState !== false) {
+        if (
+          smoothedScore <= CLOSE_THRESHOLD &&
+          velocity <= 0.02 &&
+          gestureState.leftPlaybackState !== false
+        ) {
           gestureState.leftPlaybackState = false;
           setPlaybackFromGesture(false).catch((error) => {
             console.error("Left-hand pause gesture failed", error);
@@ -383,7 +417,7 @@
 
         try {
           await loadAudioFile(file);
-          uploadMessage = `uploaded ✓ ${file.name}`;
+          uploadMessage = `uploaded file: ${file.name}`;
           updateSongIndicator(getAudioState());
         } catch (error) {
           console.error("Import failed", error);
