@@ -23,6 +23,10 @@
     <video id="feed" playsinline></video>
 
     <div id="preloader" aria-hidden="true">
+      <div id="preloader-photo-wrap" aria-hidden="true">
+        <img id="preloader-photo" src="./earbuds-reference.jpg" alt="" />
+      </div>
+
       <svg id="preloader-wires" viewBox="0 0 1000 1000" role="presentation" aria-hidden="true">
         <path class="wire-path wire-coil-1" d="M250 230 C 360 130, 640 130, 750 230 C 820 300, 820 390, 750 455 C 640 555, 360 555, 250 455 C 180 390, 180 300, 250 230" />
         <path class="wire-path wire-coil-2" d="M280 250 C 375 170, 625 170, 720 250 C 780 305, 780 370, 720 425 C 625 505, 375 505, 280 425 C 220 370, 220 305, 280 250" />
@@ -223,6 +227,7 @@
       const ctx = canvas.getContext("2d");
       const video = document.getElementById("feed");
       const preloader = document.getElementById("preloader");
+      const preloaderPhoto = document.getElementById("preloader-photo");
       const overlay = document.getElementById("overlay");
       const beginButton = document.getElementById("begin-btn");
 
@@ -275,6 +280,31 @@
         window.setTimeout(() => {
           preloader.style.display = "none";
         }, 560);
+      }
+
+      function initPreloaderAsset() {
+        if (!preloader || !preloaderPhoto) {
+          return;
+        }
+
+        const enablePhotoMode = () => {
+          preloader.classList.add("use-photo");
+        };
+
+        const disablePhotoMode = () => {
+          preloader.classList.remove("use-photo");
+        };
+
+        preloaderPhoto.addEventListener("load", enablePhotoMode, { once: true });
+        preloaderPhoto.addEventListener("error", disablePhotoMode, { once: true });
+
+        if (preloaderPhoto.complete) {
+          if (preloaderPhoto.naturalWidth > 0) {
+            enablePhotoMode();
+          } else {
+            disablePhotoMode();
+          }
+        }
       }
 
       function updatePitchVolumeTrackers(hz, volume) {
@@ -764,6 +794,7 @@
       updateFingerMeters(fingerEffectsFromHand(null));
       updatePitchVolumeTrackers(0, 0);
       updateSongIndicator(getAudioState());
+      initPreloaderAsset();
       window.setTimeout(dismissPreloader, PRELOADER_DURATION_MS);
       requestAnimationFrame(frame);
     </script>
