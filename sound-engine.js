@@ -556,45 +556,59 @@ export function updateSound(rightHand, leftHand) {
     const wristY = clamp(rightHand[0].y, 0, 1);
     const openness = opennessFromHand(rightHand);
 
+    const wristX = clamp(rightHand[0].x, 0, 1);
+    const thumbControl = tipControl(rightHand, 4);
     const indexControl = tipControl(rightHand, 8);
     const middleControl = tipControl(rightHand, 12);
     const ringControl = tipControl(rightHand, 16);
+    const pinkyControl = tipControl(rightHand, 20);
 
     const volume = mapRange(openness, RIGHT_CLOSED_OPENNESS, RIGHT_OPEN_OPENNESS, 0, 1);
+
+    // Thumb boosts instrument drive for stronger musical articulation.
     const synthDepth = soundConfig.synthEnabled ? soundConfig.synthAmount : 0;
+    const thumbDrive = mapRange(thumbControl, 0, 1, 0.65, 1.55);
     const instrumentGainTarget = clamp(
-      volume * mapRange(synthDepth, 0, 1, 0, 1.35) * instrumentLevelMultiplier(soundConfig.instrument),
+      volume * mapRange(synthDepth, 0, 1, 0, 1.35) * instrumentLevelMultiplier(soundConfig.instrument) * thumbDrive,
       0,
-      1.4
+      1.6
     );
     gainNode.gain.rampTo(volume, 0.05);
     instrumentGain.gain.rampTo(instrumentGainTarget, 0.05);
 
+    // Vertical hand motion traverses a quantized scale.
     const scaleSteps = scaleStepsForInstrument(soundConfig.instrument);
     const scaleIndex = Math.round((1 - wristY) * (scaleSteps - 1));
     const midi = midiFromScaleIndex(scaleIndex, baseMidiForInstrument(soundConfig.instrument));
     const hz = hzFromMidi(midi);
 
+    // Horizontal hand motion sweeps filter frequency across the full range.
     const filterDepth = soundConfig.filterEnabled ? soundConfig.filterAmount : 0;
     const filterMin = soundConfig.instrument === "bass" ? 60 : soundConfig.instrument === "drums" ? 120 : 180;
-    const filterMax = soundConfig.instrument === "bass" ? 2200 : 9000;
-    const gestureFreq = mapRange(indexControl, 0, 1, filterMin, filterMax);
-    const filterTarget = clamp(gestureFreq * filterDepth + 18000 * (1 - filterDepth), 40, 18000);
-    const filterQ = mapRange(filterDepth, 0, 1, 0.0001, 12) * mapRange(middleControl, 0, 1, 0.8, 1.5);
+    const filterMax = soundConfig.instrument === "bass" ? 2600 : 11000;
+    const sweepFreq = mapRange(wristX, 0, 1, filterMin, filterMax);
+    const filterTarget = clamp(sweepFreq * filterDepth + 18000 * (1 - filterDepth), 40, 18000);
+
+    // Index finger adds resonance emphasis.
+    const resonanceBoost = mapRange(indexControl, 0, 1, 0.6, 2.2);
+    const filterQ = mapRange(filterDepth, 0, 1, 0.0001, 11) * resonanceBoost;
     filter.frequency.rampTo(filterTarget, 0.08);
     filter.Q.rampTo(filterQ, 0.08);
 
+    // Middle finger shapes reverb intensity.
     const reverbDepth = soundConfig.reverbEnabled ? soundConfig.reverbAmount : 0;
-    const reverbGesture = mapRange(middleControl, 0, 1, 0.08, 1);
+    const reverbGesture = mapRange(middleControl, 0, 1, 0.08, 1.15);
     const reverbTarget = clamp(reverbGesture * mapRange(reverbDepth, 0, 1, 0, 1.2), 0, 1);
     reverb.wet.rampTo(reverbTarget, 0.1);
 
+    // Ring finger controls pitch-shift range, pinky controls pitch wetness.
     const pitchDepth = soundConfig.pitchEnabled ? soundConfig.pitchAmount : 0;
     if (pitchDepth > 0) {
-      const targetPitch = mapRange(ringControl, 0, 1, -12, 12) * mapRange(pitchDepth, 0, 1, 0, 2.4);
+      const targetPitch = mapRange(ringControl, 0, 1, -12, 12) * mapRange(pitchDepth, 0, 1, 0, 2.6);
+      const pinkyWet = mapRange(pinkyControl, 0, 1, 0.2, 1.2);
       smoothedPitch += (targetPitch - smoothedPitch) * 0.24;
       pitchShift.pitch = smoothedPitch;
-      pitchShift.wet.rampTo(clamp(mapRange(pitchDepth, 0, 1, 0.18, 1), 0, 1), 0.08);
+      pitchShift.wet.rampTo(clamp(mapRange(pitchDepth, 0, 1, 0.18, 1) * pinkyWet, 0, 1), 0.08);
     } else {
       smoothedPitch = 0;
       pitchShift.pitch = 0;

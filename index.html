@@ -101,7 +101,7 @@
         <div id="song-progress-fill"></div>
       </div>
       <p id="song-time">00:00 / 00:00</p>
-      <p id="song-hint">left hand open/play, closed/pause · move right hand up/down to climb scale</p>
+      <p id="song-hint">left hand open/play, closed/pause · right hand up/down scale, side/side filter, fingers fx</p>
     </div>
 
     <input
@@ -306,7 +306,7 @@
 
         playToggleButton.disabled = !hasTrack;
         playToggleButton.textContent = audioState?.isPlaying ? "pause" : "play";
-        songHint.textContent = "left hand open = play, closed = pause · move right hand up/down to climb scale";
+        songHint.textContent = "left hand open = play, closed = pause · right hand up/down scale, side/side filter, fingers fx";
         uploadStatus.textContent = uploadMessage;
       }
 
@@ -525,7 +525,7 @@
         } catch (error) {
           console.error("Import failed", error);
           uploadMessage = "upload successful";
-          songHint.textContent = "left hand open = play, closed = pause · move right hand up/down to climb scale";
+          songHint.textContent = "left hand open = play, closed = pause · right hand up/down scale, side/side filter, fingers fx";
           updateSongIndicator(getAudioState());
         } finally {
           importAudioButton.disabled = false;
