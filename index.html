@@ -377,7 +377,7 @@
         hudHands = latestResults?.multiHandLandmarks?.length || 0;
 
         drawHud();
-        updateSongIndicator(metrics);
+        updateSongIndicator(getAudioState());
 
         requestAnimationFrame(frame);
       }

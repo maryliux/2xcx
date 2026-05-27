@@ -83,18 +83,35 @@ function revokeMediaObjectUrl() {
 }
 
 function getDuration() {
-  if (!mediaElement || !Number.isFinite(mediaElement.duration) || mediaElement.duration <= 0) {
+  if (!mediaElement) {
     return 0;
   }
-  return mediaElement.duration;
+
+  if (Number.isFinite(mediaElement.duration) && mediaElement.duration > 0) {
+    return mediaElement.duration;
+  }
+
+  if (mediaElement.seekable && mediaElement.seekable.length > 0) {
+    const seekableEnd = mediaElement.seekable.end(mediaElement.seekable.length - 1);
+    if (Number.isFinite(seekableEnd) && seekableEnd > 0) {
+      return seekableEnd;
+    }
+  }
+
+  return 0;
 }
 
 function getCurrentTime() {
-  const duration = getDuration();
-  if (!mediaElement || !Number.isFinite(mediaElement.currentTime) || duration <= 0) {
+  if (!mediaElement || !Number.isFinite(mediaElement.currentTime)) {
     return 0;
   }
-  return clamp(mediaElement.currentTime, 0, duration);
+
+  const duration = getDuration();
+  if (duration > 0) {
+    return clamp(mediaElement.currentTime, 0, duration);
+  }
+
+  return Math.max(0, mediaElement.currentTime);
 }
 
 async function waitForDuration(element) {
