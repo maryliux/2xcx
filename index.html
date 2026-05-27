@@ -192,7 +192,7 @@
         playToggleButton.disabled = !hasTrack;
         playToggleButton.textContent = audioState?.isPlaying ? "pause" : "play";
         songHint.textContent = "left hand open = play, closed = pause · right fingers control synth";
-        uploadStatus.textContent = latestUploadedFileName ? `uploaded file: ${latestUploadedFileName}` : uploadMessage;
+        uploadStatus.textContent = uploadMessage;
       }
 
       function selectHands(results) {
@@ -405,7 +405,7 @@
         try {
           await loadAudioFile(file);
           latestUploadedFileName = file.name;
-          uploadMessage = `uploaded file: ${file.name}`;
+          uploadMessage = `upload successful: ${file.name}`;
           updateSongIndicator(getAudioState());
         } catch (error) {
           console.error("Import failed", error);
