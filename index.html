@@ -5,9 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Hand Halftone Instrument</title>
     <link rel="stylesheet" href="./style.css" />
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"
+    ></script>
+    <script
+      type="module"
+      src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"
+    ></script>
+    <script
+      type="module"
+      src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"
+    ></script>
   </head>
   <body>
     <canvas id="main"></canvas>
@@ -268,19 +277,15 @@
         beginButton.textContent = "initializing...";
 
         try {
+          await globalThis.Tone.start();
+          await initAudio();
+
           await initTracker(video, (results) => {
             latestResults = results;
           });
 
           started = true;
           overlay.style.display = "none";
-
-          try {
-            await initAudio();
-          } catch (audioError) {
-            console.warn("Audio engine unavailable at startup:", audioError);
-          }
-
           updateSongIndicator(getAudioState());
         } catch (error) {
           console.error("Failed to start instrument:", error);

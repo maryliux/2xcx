@@ -25,29 +25,6 @@ const TIP_INDICES = [4, 8, 12, 16, 20];
 const RIGHT_CLOSED_OPENNESS = 0.09;
 const RIGHT_OPEN_OPENNESS = 0.33;
 
-function loadToneScript(src) {
-  return new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = `${src}?v=${Date.now()}`;
-    script.async = true;
-    script.addEventListener("load", () => resolve(), { once: true });
-    script.addEventListener("error", () => reject(new Error(`Failed to load ${src}`)), {
-      once: true,
-    });
-    document.head.appendChild(script);
-  });
-}
-
-async function ensureToneGlobal() {
-  if (globalThis.Tone) {
-    return;
-  }
-  await loadToneScript("https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js");
-  if (!globalThis.Tone) {
-    throw new Error("Tone.js did not load.");
-  }
-}
-
 function hasRequiredLandmarks(hand, indices) {
   if (!hand) {
     return false;
@@ -200,8 +177,10 @@ export function getAudioState() {
 }
 
 export async function initAudio() {
-  await ensureToneGlobal();
   ToneLib = globalThis.Tone;
+  if (!ToneLib) {
+    throw new Error("Tone.js did not load.");
+  }
 
   await ToneLib.start();
   if (initialized) {

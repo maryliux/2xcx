@@ -22,35 +22,7 @@ const HAND_CONNECTIONS = [
   [0, 17],
 ];
 
-function loadClassicScript(src) {
-  return new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.src = src;
-    script.async = true;
-    script.addEventListener("load", () => resolve(), { once: true });
-    script.addEventListener("error", () => reject(new Error(`Failed to load ${src}`)), {
-      once: true,
-    });
-    document.head.appendChild(script);
-  });
-}
-
-async function ensureMediaPipeGlobals() {
-  if (globalThis.Hands && globalThis.Camera) {
-    return;
-  }
-
-  await loadClassicScript("https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js");
-  await loadClassicScript("https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js");
-
-  if (!globalThis.Hands || !globalThis.Camera) {
-    throw new Error("MediaPipe Hands or Camera utils did not load.");
-  }
-}
-
 export async function initTracker(videoEl, onResults) {
-  await ensureMediaPipeGlobals();
-
   const HandsCtor = globalThis.Hands;
   const CameraCtor = globalThis.Camera;
 
