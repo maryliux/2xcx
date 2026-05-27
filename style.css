@@ -46,125 +46,40 @@ video {
   pointer-events: none;
 }
 
-#preloader-photo-wrap {
-  position: absolute;
-  inset: 0;
-  display: none;
-  place-items: center;
-}
-
-#preloader-photo {
-  width: min(760px, 88vw);
-  max-height: min(88vh, 760px);
-  object-fit: contain;
-  filter: grayscale(1) contrast(1.7) brightness(1.1);
-  opacity: 0;
-  transform: scale(0.98);
-
-  -webkit-mask-image: radial-gradient(circle at 1.8px 1.8px, #000 1.8px, transparent 2.25px);
-  -webkit-mask-size: 7px 7px;
-  -webkit-mask-position: 0 0;
-
-  mask-image: radial-gradient(circle at 1.8px 1.8px, #000 1.8px, transparent 2.25px);
-  mask-size: 7px 7px;
-  mask-position: 0 0;
-
-  animation: photo-appear 1.2s ease forwards;
-}
-
-#preloader.use-photo #preloader-photo-wrap {
-  display: grid;
-}
-
-#preloader.use-photo #preloader-wires {
-  display: none;
-}
-
 #preloader-wires {
-  width: min(760px, 88vw);
-  height: min(88vh, 760px);
+  width: min(730px, 90vw);
+  height: min(90vh, 730px);
 }
 
-.wire-path {
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.97);
-  stroke-width: 8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-dasharray: 2200;
-  stroke-dashoffset: 2200;
-  animation: wire-draw 2.5s cubic-bezier(0.25, 0.85, 0.2, 1) forwards;
+.preloader-bg {
+  fill: #000000;
 }
 
-.wire-coil-2 {
-  animation-delay: 0.08s;
-}
-
-.wire-coil-3 {
-  animation-delay: 0.16s;
-}
-
-.wire-coil-4 {
-  animation-delay: 0.24s;
-}
-
-.wire-drop-left {
-  animation-delay: 0.34s;
-}
-
-.wire-drop-right {
-  animation-delay: 0.42s;
-}
-
-.wire-jack-cord {
-  animation-delay: 0.5s;
-}
-
-.hardware-item {
-  fill: rgba(255, 255, 255, 0.97);
+.earbud-dots,
+.earbud-cutouts {
   opacity: 0;
   transform-box: fill-box;
   transform-origin: center;
-  animation: hardware-pop 360ms ease forwards;
 }
 
-.wire-tie {
-  fill: rgba(242, 242, 246, 0.95);
-  animation-delay: 0.55s;
+.earbud-dots {
+  animation: earbuds-reveal 1.2s ease forwards 0.14s;
 }
 
-.earbud-left-stem {
-  animation-delay: 0.66s;
+.earbud-cutouts {
+  animation: earbuds-reveal 0.7s ease forwards 0.62s;
 }
 
-.earbud-left-shell {
-  animation-delay: 0.72s;
+.cut-stroke {
+  fill: none;
+  stroke: #020202;
+  stroke-width: 12;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.earbud-right-stem {
-  animation-delay: 0.78s;
-}
-
-.earbud-right-shell {
-  animation-delay: 0.84s;
-}
-
-.jack-body {
-  fill: rgba(245, 245, 247, 0.95);
-  animation-delay: 0.9s;
-}
-
-.jack-tip,
-.jack-ring {
-  fill: rgba(242, 242, 246, 0.94);
-}
-
-.jack-tip {
-  animation-delay: 0.96s;
-}
-
-.jack-ring {
-  animation-delay: 1.02s;
+.cut-hole {
+  fill: #020202;
 }
 
 #preloader-note {
@@ -177,31 +92,14 @@ video {
   color: rgba(255, 255, 255, 0.7);
 }
 
-@keyframes wire-draw {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-@keyframes hardware-pop {
+@keyframes earbuds-reveal {
   0% {
     opacity: 0;
-    transform: scale(0.72);
+    transform: translateY(8px) scale(0.985);
   }
   100% {
     opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes photo-appear {
-  0% {
-    opacity: 0;
-    transform: scale(0.98);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
+    transform: translateY(0) scale(1);
   }
 }
 
