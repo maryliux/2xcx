@@ -309,16 +309,22 @@
           return;
         }
 
-        overlaySmoothX += (overlayTargetX - overlaySmoothX) * 0.11;
-        overlaySmoothY += (overlayTargetY - overlaySmoothY) * 0.11;
+        overlaySmoothX += (overlayTargetX - overlaySmoothX) * 0.14;
+        overlaySmoothY += (overlayTargetY - overlaySmoothY) * 0.14;
 
-        const shiftX = (overlaySmoothX - 0.5) * 26;
-        const shiftY = (overlaySmoothY - 0.5) * 26;
+        const centeredX = overlaySmoothX - 0.5;
+        const centeredY = overlaySmoothY - 0.5;
+        const gridShiftX = centeredX * 18;
+        const gridShiftY = centeredY * 18;
+        const nodeShiftX = centeredX * 36;
+        const nodeShiftY = centeredY * 36;
 
         overlay.style.setProperty("--cursor-x", `${(overlaySmoothX * 100).toFixed(2)}%`);
         overlay.style.setProperty("--cursor-y", `${(overlaySmoothY * 100).toFixed(2)}%`);
-        overlay.style.setProperty("--grid-shift-x", `${shiftX.toFixed(2)}px`);
-        overlay.style.setProperty("--grid-shift-y", `${shiftY.toFixed(2)}px`);
+        overlay.style.setProperty("--grid-shift-x", `${gridShiftX.toFixed(2)}px`);
+        overlay.style.setProperty("--grid-shift-y", `${gridShiftY.toFixed(2)}px`);
+        overlay.style.setProperty("--node-shift-x", `${nodeShiftX.toFixed(2)}px`);
+        overlay.style.setProperty("--node-shift-y", `${nodeShiftY.toFixed(2)}px`);
       }
 
       const PRELOADER_DURATION_MS = 3400;

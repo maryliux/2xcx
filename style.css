@@ -229,6 +229,9 @@ video {
   --cursor-y: 50%;
   --grid-shift-x: 0px;
   --grid-shift-y: 0px;
+  --node-shift-x: 0px;
+  --node-shift-y: 0px;
+  --grid-size: 44px;
   position: absolute;
   inset: 0;
   display: grid;
@@ -242,16 +245,19 @@ video {
 #overlay::before {
   content: "";
   position: absolute;
-  inset: -4%;
+  inset: -6%;
   background-image:
-    linear-gradient(rgba(170, 212, 255, 0.16) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(170, 212, 255, 0.16) 1px, transparent 1px);
-  background-size: 44px 44px;
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='44' viewBox='0 0 44 44'%3E%3Cpath d='M0 0H44M0 0V44' fill='none' stroke='%23d9ecff' stroke-opacity='0.72' stroke-width='1.2' stroke-linecap='round' stroke-dasharray='1.2 6'/%3E%3C/svg%3E"),
+    radial-gradient(circle, rgba(255, 255, 255, 0.96) 0 1.85px, transparent 2.4px);
+  background-size:
+    var(--grid-size) var(--grid-size),
+    var(--grid-size) var(--grid-size);
   background-position:
-    calc(var(--grid-shift-x) * 0.6) calc(var(--grid-shift-y) * 0.6),
-    var(--grid-shift-x) var(--grid-shift-y);
-  opacity: 0.17;
-  transform: scale(1.02);
+    var(--grid-shift-x) var(--grid-shift-y),
+    calc(var(--grid-shift-x) + var(--node-shift-x)) calc(var(--grid-shift-y) + var(--node-shift-y));
+  opacity: 0.62;
+  transform: scale(1.03);
+  filter: drop-shadow(0 0 4px rgba(194, 226, 255, 0.2));
   pointer-events: none;
 }
 
@@ -260,7 +266,7 @@ video {
   position: absolute;
   inset: -25%;
   background:
-    radial-gradient(circle at var(--cursor-x) var(--cursor-y), rgba(146, 214, 255, 0.2) 0%, rgba(146, 214, 255, 0.07) 24%, rgba(5, 10, 20, 0) 52%);
+    radial-gradient(circle at var(--cursor-x) var(--cursor-y), rgba(146, 214, 255, 0.3) 0%, rgba(146, 214, 255, 0.11) 22%, rgba(5, 10, 20, 0) 52%);
   pointer-events: none;
 }
 
