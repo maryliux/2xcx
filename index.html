@@ -32,7 +32,7 @@
 
     <div id="song-indicator">
       <div id="song-controls">
-        <button id="import-audio-btn" type="button">import mp4</button>
+        <button id="import-audio-btn" type="button">import mp3</button>
         <button id="play-toggle-btn" type="button" disabled>play</button>
       </div>
       <p id="song-title">no track loaded</p>
@@ -46,7 +46,7 @@
     <input
       id="audio-file-input"
       type="file"
-      accept=".mp4,audio/mp4,video/mp4"
+      accept=".mp3,audio/mpeg,audio/mp3"
       hidden
     />
 
@@ -386,7 +386,7 @@
           songHint.textContent = "failed to load file";
         } finally {
           importAudioButton.disabled = false;
-          importAudioButton.textContent = "import mp4";
+          importAudioButton.textContent = "import mp3";
         }
       });
 

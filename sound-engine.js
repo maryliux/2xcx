@@ -165,7 +165,7 @@ export async function loadAudioFile(file) {
 
     const onError = () => {
       cleanup();
-      reject(new Error("Failed to load this MP4 file."));
+      reject(new Error("Failed to load this MP3 file."));
     };
 
     const cleanup = () => {
