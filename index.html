@@ -40,7 +40,7 @@
         <div id="song-progress-fill"></div>
       </div>
       <p id="song-time">00:00 / 00:00</p>
-      <p id="song-hint">right pinch: play/pause · left pinch + move finger: scrub</p>
+      <p id="song-hint">right pinch: play/pause · right hand controls pitch/synth</p>
     </div>
 
     <input
@@ -57,7 +57,6 @@
         getAudioState,
         initAudio,
         loadAudioFile,
-        seekToNormalized,
         togglePlayback,
         updateSound,
       } from "./sound-engine.js";
@@ -85,10 +84,7 @@
 
       const gestureState = {
         rightPinched: false,
-        leftPinched: false,
-        scrubbing: false,
         lastToggleMs: 0,
-        lastSeekMs: 0,
       };
 
       function clamp(value, min, max) {
@@ -137,12 +133,7 @@
 
         playToggleButton.disabled = !hasTrack;
         playToggleButton.textContent = audioState?.isPlaying ? "pause" : "play";
-
-        if (gestureState.scrubbing) {
-          songHint.textContent = "scrubbing with left pinch";
-        } else {
-          songHint.textContent = "right pinch: play/pause · left pinch + move finger: scrub";
-        }
+        songHint.textContent = "right pinch: play/pause · right hand controls pitch/synth";
       }
 
       function selectHands(results) {
@@ -167,10 +158,10 @@
         return { rightHand, leftHand };
       }
 
-      function handleGesturePlayback(rightHand, leftHand) {
+      function handleGesturePlayback(rightHand) {
         const now = performance.now();
-
         const rightPinched = isPinched(rightHand);
+
         if (
           rightPinched &&
           !gestureState.rightPinched &&
@@ -181,18 +172,8 @@
             console.error("Gesture play/pause failed", error);
           });
         }
+
         gestureState.rightPinched = rightPinched;
-
-        const leftPinched = isPinched(leftHand);
-        gestureState.leftPinched = leftPinched;
-        gestureState.scrubbing = false;
-
-        if (leftPinched && leftHand?.[8] && now - gestureState.lastSeekMs > 55) {
-          const mirroredX = 1 - leftHand[8].x;
-          seekToNormalized(clamp(mirroredX, 0, 1));
-          gestureState.lastSeekMs = now;
-          gestureState.scrubbing = true;
-        }
       }
 
       async function tuneExposure(stream) {
@@ -346,7 +327,7 @@
 
         const { rightHand, leftHand } = selectHands(latestResults);
         if (started) {
-          handleGesturePlayback(rightHand, leftHand);
+          handleGesturePlayback(rightHand);
         }
 
         const metrics = updateSound(rightHand, leftHand);
