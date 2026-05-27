@@ -10,7 +10,7 @@ let pitchShift = null;
 let mediaElement = null;
 let mediaSource = null;
 let mediaObjectUrl = null;
-let loadedTrackName = "no track loaded";
+let loadedTrackName = "awaiting mp3 upload";
 
 let initialized = false;
 let lastHz = 220;
@@ -136,7 +136,7 @@ export function getAudioState() {
 
   return {
     hasTrack,
-    fileName: hasTrack ? loadedTrackName : "no track loaded",
+    fileName: loadedTrackName,
     isPlaying: hasTrack ? !mediaElement.paused : false,
     currentTime,
     duration,
@@ -231,7 +231,7 @@ export async function loadAudioFile(file) {
   mediaElement = element;
   mediaSource = new ToneLib.MediaElementSource(mediaElement);
   mediaSource.connect(pitchShift);
-  loadedTrackName = file.name || "imported track";
+  loadedTrackName = file.name || "uploaded track";
   smoothedPitch = 0;
   lastGesturePlaybackState = null;
 
@@ -273,6 +273,8 @@ export async function setPlaybackFromGesture(shouldPlay) {
 }
 
 export function updateSound(rightHand, leftHand) {
+  void leftHand;
+
   if (!initialized || !oscillator || !filter || !reverb || !gainNode || !synthGain || !pitchShift) {
     return {
       hz: lastHz,
@@ -305,6 +307,7 @@ export function updateSound(rightHand, leftHand) {
     );
     const hz = clamp(baseHz + closePitchOffset, 50, 900);
 
+    const volume = mapRange(openness, RIGHT_CLOSED_OPENNESS, RIGHT_OPEN_OPENNESS, 0, 1);
     const synthLevel = mapRange(thumbControl, 0, 1, 0.02, 0.32);
     const filterFreq = mapRange(indexControl, 0, 1, 260, 8200);
     const wet = mapRange(middleControl, 0, 1, 0.06, 0.75);
@@ -324,11 +327,13 @@ export function updateSound(rightHand, leftHand) {
     synthGain.gain.rampTo(synthLevel, 0.08);
     filter.frequency.rampTo(filterFreq, 0.1);
     reverb.wet.rampTo(wet, 0.1);
+    gainNode.gain.rampTo(volume, 0.05);
 
     smoothedPitch += (targetPitch - smoothedPitch) * 0.2;
     pitchShift.pitch = smoothedPitch;
 
     lastHz = hz;
+    lastVolume = volume;
   } else {
     synthGain.gain.rampTo(0.02, 0.1);
     oscillator.volume.rampTo(-20, 0.12);
@@ -336,25 +341,6 @@ export function updateSound(rightHand, leftHand) {
     reverb.wet.rampTo(0.2, 0.12);
     smoothedPitch += (0 - smoothedPitch) * 0.15;
     pitchShift.pitch = smoothedPitch;
-  }
-
-  const volumeHand = hasRequiredLandmarks(leftHand, [0, 4, 8, 12, 16, 20])
-    ? leftHand
-    : hasRequiredLandmarks(rightHand, [0, 4, 8, 12, 16, 20])
-    ? rightHand
-    : null;
-
-  if (volumeHand) {
-    const tips = [4, 8, 12, 16, 20];
-    const wrist = volumeHand[0];
-    const avgDist = tips.reduce((sum, i) => {
-      const dx = volumeHand[i].x - wrist.x;
-      const dy = volumeHand[i].y - wrist.y;
-      return sum + Math.sqrt(dx * dx + dy * dy);
-    }, 0) / tips.length;
-    const openness = Math.max(0, Math.min(1, (avgDist - 0.05) / 0.30));
-    gainNode.gain.rampTo(openness, 0.05);
-    lastVolume = openness;
   }
 
   return {

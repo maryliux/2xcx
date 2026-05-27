@@ -58,6 +58,7 @@
         getAudioState,
         initAudio,
         loadAudioFile,
+        setPlaybackFromGesture,
         togglePlayback,
         updateSound,
       } from "./sound-engine.js";
@@ -84,7 +85,12 @@
       let previousHudVolume = 0;
       let hudHands = 0;
       let uploadMessage = "awaiting mp3 upload";
+      let latestUploadedFileName = "";
 
+      const leftHandGestureState = {
+        playbackState: null,
+        openScore: 1.1,
+      };
 
       function clamp(value, min, max) {
         return Math.min(max, Math.max(min, value));
@@ -100,6 +106,65 @@
         const dy = a.y - b.y;
         const dz = (a.z || 0) - (b.z || 0);
         return Math.hypot(dx, dy, dz);
+      }
+
+      function leftHandOpenScore(hand) {
+        if (!hand || !hand[0] || !hand[5] || !hand[17]) {
+          return 0;
+        }
+
+        const centerIndices = [0, 5, 9, 13, 17];
+        let cx = 0;
+        let cy = 0;
+        let cz = 0;
+
+        centerIndices.forEach((idx) => {
+          cx += hand[idx].x;
+          cy += hand[idx].y;
+          cz += hand[idx].z || 0;
+        });
+
+        const center = {
+          x: cx / centerIndices.length,
+          y: cy / centerIndices.length,
+          z: cz / centerIndices.length,
+        };
+
+        const tipIndices = [4, 8, 12, 16, 20];
+        const tipAverage =
+          tipIndices.reduce((sum, idx) => sum + distance3D(hand[idx], center), 0) /
+          tipIndices.length;
+
+        const palmWidth = Math.max(distance3D(hand[5], hand[17]), 0.0001);
+        return tipAverage / palmWidth;
+      }
+
+      function handleLeftHandPlayback(leftHand) {
+        if (!leftHand) {
+          return;
+        }
+
+        const rawScore = leftHandOpenScore(leftHand);
+        const smoothed = leftHandGestureState.openScore * 0.72 + rawScore * 0.28;
+        leftHandGestureState.openScore = smoothed;
+
+        const OPEN_THRESHOLD = 1.18;
+        const CLOSE_THRESHOLD = 0.93;
+
+        if (smoothed >= OPEN_THRESHOLD && leftHandGestureState.playbackState !== true) {
+          leftHandGestureState.playbackState = true;
+          setPlaybackFromGesture(true).catch((error) => {
+            console.error("Left-hand play gesture failed", error);
+          });
+          return;
+        }
+
+        if (smoothed <= CLOSE_THRESHOLD && leftHandGestureState.playbackState !== false) {
+          leftHandGestureState.playbackState = false;
+          setPlaybackFromGesture(false).catch((error) => {
+            console.error("Left-hand pause gesture failed", error);
+          });
+        }
       }
 
       function formatTime(seconds) {
@@ -119,14 +184,15 @@
         const currentTime = Number.isFinite(audioState?.currentTime) ? audioState.currentTime : 0;
         const progress = duration > 0 ? clamp(currentTime / duration, 0, 1) : 0;
 
-        songTitle.textContent = hasTrack ? audioState.fileName : "no track loaded";
+        const displayName = audioState?.fileName || latestUploadedFileName || "awaiting mp3 upload";
+        songTitle.textContent = displayName;
         songTime.textContent = `${formatTime(currentTime)} / ${formatTime(duration)}`;
         songProgressFill.style.width = `${progress * 100}%`;
 
         playToggleButton.disabled = !hasTrack;
         playToggleButton.textContent = audioState?.isPlaying ? "pause" : "play";
-        songHint.textContent = "left hand open/close = volume · right fingers control synth";
-        uploadStatus.textContent = hasTrack ? `uploaded file: ${audioState.fileName}` : uploadMessage;
+        songHint.textContent = "left hand open = play, closed = pause · right fingers control synth";
+        uploadStatus.textContent = latestUploadedFileName ? `uploaded file: ${latestUploadedFileName}` : uploadMessage;
       }
 
       function selectHands(results) {
@@ -301,6 +367,9 @@
         ctx.restore();
 
         const { rightHand, leftHand } = selectHands(latestResults);
+        if (started) {
+          handleLeftHandPlayback(leftHand);
+        }
 
         const metrics = updateSound(rightHand, leftHand);
         hudHz = metrics.hz;
@@ -335,6 +404,7 @@
 
         try {
           await loadAudioFile(file);
+          latestUploadedFileName = file.name;
           uploadMessage = `uploaded file: ${file.name}`;
           updateSongIndicator(getAudioState());
         } catch (error) {
