@@ -2,15 +2,15 @@ const CELL_SIZE = 7;
 const SAMPLE_STRIDE = 1;
 
 const BACKGROUND_COLOR = "#000000";
-const LINE_COLOR = "rgba(143, 200, 169, 0.38)";
-const LINE_COLOR_STRONG = "rgba(244, 248, 255, 0.34)";
-const NODE_COLOR = "#f4f8ff";
+const LINE_COLOR = "rgba(143, 200, 169, 0.24)";
+const LINE_COLOR_STRONG = "rgba(244, 248, 255, 0.2)";
+const NODE_COLOR = "#e8f2ee";
 
-const MIN_NODE_RADIUS = 0.8;
-const MAX_NODE_RADIUS = 2.0;
+const MIN_NODE_RADIUS = 0.65;
+const MAX_NODE_RADIUS = 1.55;
 
 const DIFF_THRESHOLD = 0.07;
-const FOREGROUND_MIN = 0.2;
+const FOREGROUND_MIN = 0.24;
 const BG_ADAPT_FAST = 0.045;
 const BG_ADAPT_SLOW = 0.002;
 
@@ -137,7 +137,7 @@ export function drawHalftone(ctx, video, canvasW, canvasH) {
   }
 
   const meanLuma = lumaSum / Math.max(1, cols * rows);
-  const soft = blurGrid(luma, cols, rows);
+  const soft = blurGrid(blurGrid(luma, cols, rows), cols, rows);
 
   ctx.save();
   ctx.fillStyle = BACKGROUND_COLOR;
@@ -162,8 +162,8 @@ export function drawHalftone(ctx, video, canvasW, canvasH) {
       }
 
       const dither = (BAYER_4X4[(gy & 3) * 4 + (gx & 3)] + 0.5) / 16;
-      const presence = clamp(foregroundScore * 1.15, 0, 1);
-      if (presence < dither * 0.86) {
+      const presence = clamp(foregroundScore, 0, 1);
+      if (presence < dither * 0.92) {
         continue;
       }
 
@@ -179,7 +179,7 @@ export function drawHalftone(ctx, video, canvasW, canvasH) {
     for (let gx = 0; gx < cols; gx += 1) {
       const idx = gy * cols + gx;
       const p = active[idx];
-      if (p <= 0.22) {
+      if (p <= 0.3) {
         continue;
       }
 
@@ -188,7 +188,7 @@ export function drawHalftone(ctx, video, canvasW, canvasH) {
 
       if (gx + 1 < cols) {
         const right = active[idx + 1];
-        if (right > 0.22) {
+        if (right > 0.3) {
           ctx.moveTo(cx, cy);
           ctx.lineTo(cx + CELL_SIZE, cy);
         }
@@ -196,16 +196,16 @@ export function drawHalftone(ctx, video, canvasW, canvasH) {
 
       if (gy + 1 < rows) {
         const down = active[idx + cols];
-        if (down > 0.22) {
+        if (down > 0.3) {
           ctx.moveTo(cx, cy);
           ctx.lineTo(cx, cy + CELL_SIZE);
         }
       }
     }
   }
-  ctx.globalAlpha = 0.9;
+  ctx.globalAlpha = 0.45;
   ctx.strokeStyle = LINE_COLOR;
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 0.9;
   ctx.stroke();
 
   ctx.beginPath();
@@ -213,27 +213,27 @@ export function drawHalftone(ctx, video, canvasW, canvasH) {
     for (let gx = 0; gx < cols; gx += 1) {
       const idx = gy * cols + gx;
       const p = active[idx];
-      if (p <= 0.55) {
+      if (p <= 0.68) {
         continue;
       }
 
       const cx = gx * CELL_SIZE + CELL_SIZE * 0.5;
       const cy = gy * CELL_SIZE + CELL_SIZE * 0.5;
 
-      if (gx + 1 < cols && active[idx + 1] > 0.55) {
+      if (gx + 1 < cols && active[idx + 1] > 0.68) {
         ctx.moveTo(cx, cy);
         ctx.lineTo(cx + CELL_SIZE, cy);
       }
 
-      if (gy + 1 < rows && active[idx + cols] > 0.55) {
+      if (gy + 1 < rows && active[idx + cols] > 0.68) {
         ctx.moveTo(cx, cy);
         ctx.lineTo(cx, cy + CELL_SIZE);
       }
     }
   }
-  ctx.globalAlpha = 0.75;
+  ctx.globalAlpha = 0.3;
   ctx.strokeStyle = LINE_COLOR_STRONG;
-  ctx.lineWidth = 1.25;
+  ctx.lineWidth = 1;
   ctx.stroke();
 
   ctx.fillStyle = NODE_COLOR;
@@ -241,7 +241,7 @@ export function drawHalftone(ctx, video, canvasW, canvasH) {
     for (let gx = 0; gx < cols; gx += 1) {
       const idx = gy * cols + gx;
       const p = active[idx];
-      if (p <= 0.22) {
+      if (p <= 0.3) {
         continue;
       }
 
@@ -249,13 +249,13 @@ export function drawHalftone(ctx, video, canvasW, canvasH) {
       const cy = gy * CELL_SIZE + CELL_SIZE * 0.5;
       const radius = MIN_NODE_RADIUS + p * (MAX_NODE_RADIUS - MIN_NODE_RADIUS);
 
-      ctx.globalAlpha = 0.34 + p * 0.58;
+      ctx.globalAlpha = 0.16 + p * 0.36;
       drawDiamond(ctx, cx, cy, radius);
 
-      if (p > 0.72) {
-        ctx.globalAlpha = 0.68;
+      if (p > 0.8) {
+        ctx.globalAlpha = 0.35;
         ctx.beginPath();
-        ctx.arc(cx, cy, radius * 0.26, 0, Math.PI * 2);
+        ctx.arc(cx, cy, radius * 0.22, 0, Math.PI * 2);
         ctx.fill();
       }
     }
