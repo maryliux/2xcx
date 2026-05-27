@@ -29,6 +29,8 @@ let lastTriggerTime = 0;
 let lastRightOpen = false;
 let pinchIsClosed = false;
 let pinchArmedForBurst = false;
+let lastPinchArticulationTime = -Infinity;
+let lastBurstArticulationTime = -Infinity;
 
 const TIP_INDICES = [4, 8, 12, 16, 20];
 const RIGHT_CLOSED_OPENNESS = 0.09;
@@ -36,6 +38,8 @@ const RIGHT_OPEN_OPENNESS = 0.33;
 const MAJOR_SCALE_STEPS = [0, 2, 4, 5, 7, 9, 11];
 const PINCH_CLOSE_THRESHOLD = 0.38;
 const PINCH_OPEN_THRESHOLD = 0.52;
+const PINCH_ARTICULATION_COOLDOWN = 0.12;
+const BURST_ARTICULATION_COOLDOWN = 0.4;
 
 const INSTRUMENT_TYPES = new Set(["guitar", "bass", "drums", "keys"]);
 const FILTER_TYPES = new Set(["lowpass", "bandpass", "highpass", "notch"]);
@@ -342,39 +346,27 @@ function triggerBurstArticulation(noteMidi, scaleIndex, velocity, now) {
     if (kickSynth) {
       kickSynth.triggerAttackRelease("C1", "8n", now, velocity);
     }
-    if (snareSynth) {
-      snareSynth.triggerAttackRelease("16n", now + 0.035, velocity * 0.95);
-    }
     if (hatSynth) {
-      hatSynth.triggerAttackRelease("16n", now + 0.07, velocity * 0.85);
+      hatSynth.triggerAttackRelease("16n", now, velocity * 0.72);
     }
     return;
   }
 
   const baseMidi = noteMidi;
   const fifthMidi = noteMidi + 7;
-  const octaveMidi = noteMidi + 12;
 
   if (soundConfig.instrument === "bass" && bassSynth) {
     bassSynth.triggerAttackRelease(noteFromMidi(baseMidi), "8n", now, velocity);
-    bassSynth.triggerAttackRelease(noteFromMidi(octaveMidi), "16n", now + 0.065, velocity * 0.72);
     return;
   }
 
   if (soundConfig.instrument === "keys" && keysSynth) {
-    keysSynth.triggerAttackRelease(
-      [noteFromMidi(baseMidi), noteFromMidi(fifthMidi), noteFromMidi(octaveMidi)],
-      "8n",
-      now,
-      velocity
-    );
+    keysSynth.triggerAttackRelease([noteFromMidi(baseMidi), noteFromMidi(fifthMidi)], "8n", now, velocity);
     return;
   }
 
   if (guitarSynth) {
     guitarSynth.triggerAttack(noteFromMidi(baseMidi), now);
-    guitarSynth.triggerAttack(noteFromMidi(fifthMidi), now + 0.03);
-    guitarSynth.triggerAttack(noteFromMidi(octaveMidi), now + 0.06);
   }
 }
 
@@ -723,11 +715,15 @@ export function updateSound(rightHand, leftHand) {
     if (enteredPinch) {
       pinchIsClosed = true;
       pinchArmedForBurst = true;
-      triggerPinchArticulation(midi, scaleIndex, clamp(volume, 0.12, 1), timeNow);
+      if (timeNow - lastPinchArticulationTime > PINCH_ARTICULATION_COOLDOWN) {
+        triggerPinchArticulation(midi, scaleIndex, clamp(volume, 0.12, 1), timeNow);
+        lastPinchArticulationTime = timeNow;
+      }
     } else if (releasedPinch) {
       pinchIsClosed = false;
-      if (pinchArmedForBurst) {
+      if (pinchArmedForBurst && timeNow - lastBurstArticulationTime > BURST_ARTICULATION_COOLDOWN) {
         triggerBurstArticulation(midi, scaleIndex, clamp(volume, 0.14, 1), timeNow);
+        lastBurstArticulationTime = timeNow;
       }
       pinchArmedForBurst = false;
     }
@@ -743,6 +739,8 @@ export function updateSound(rightHand, leftHand) {
     lastScaleIndex = null;
     pinchIsClosed = false;
     pinchArmedForBurst = false;
+    lastPinchArticulationTime = -Infinity;
+    lastBurstArticulationTime = -Infinity;
 
     if (!soundConfig.pitchEnabled || soundConfig.pitchAmount <= 0) {
       smoothedPitch = 0;
