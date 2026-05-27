@@ -1,11 +1,18 @@
 let ToneLib = null;
 
-let oscillator = null;
-let synthGain = null;
+let gainNode = null;
 let filter = null;
 let reverb = null;
-let gainNode = null;
 let pitchShift = null;
+let instrumentGain = null;
+
+let keysSynth = null;
+let guitarSynth = null;
+let bassSynth = null;
+let kickSynth = null;
+let snareSynth = null;
+let snareFilter = null;
+let hatSynth = null;
 
 let mediaElement = null;
 let mediaSource = null;
@@ -17,14 +24,21 @@ let lastHz = 220;
 let lastVolume = 0;
 let smoothedPitch = 0;
 let lastGesturePlaybackState = null;
+let lastScaleIndex = null;
+let lastTriggerTime = 0;
+let lastRightOpen = false;
 
 const TIP_INDICES = [4, 8, 12, 16, 20];
 const RIGHT_CLOSED_OPENNESS = 0.09;
 const RIGHT_OPEN_OPENNESS = 0.33;
+const MAJOR_SCALE_STEPS = [0, 2, 4, 5, 7, 9, 11];
 
-const INSTRUMENT_TYPES = new Set(["sine", "triangle", "sawtooth", "square"]);
+const INSTRUMENT_TYPES = new Set(["guitar", "bass", "drums", "keys"]);
+const FILTER_TYPES = new Set(["lowpass", "bandpass", "highpass", "notch"]);
+
 const soundConfig = {
-  instrument: "sine",
+  instrument: "guitar",
+  filterMode: "lowpass",
   synthEnabled: true,
   synthAmount: 0.95,
   filterEnabled: true,
@@ -35,46 +49,6 @@ const soundConfig = {
   pitchAmount: 0.85,
 };
 
-function applySoundConfig() {
-  if (!initialized || !oscillator || !synthGain || !filter || !reverb || !pitchShift) {
-    return;
-  }
-
-  oscillator.type = soundConfig.instrument;
-
-  const synthDepth = soundConfig.synthEnabled ? soundConfig.synthAmount : 0;
-  if (synthDepth <= 0) {
-    synthGain.gain.rampTo(0, 0.08);
-  }
-
-  const filterDepth = soundConfig.filterEnabled ? soundConfig.filterAmount : 0;
-  if (filterDepth <= 0) {
-    filter.frequency.rampTo(18000, 0.08);
-    filter.Q.rampTo(0.0001, 0.08);
-  }
-
-  const reverbDepth = soundConfig.reverbEnabled ? soundConfig.reverbAmount : 0;
-  if (reverbDepth <= 0) {
-    reverb.wet.rampTo(0, 0.08);
-  }
-
-  const pitchDepth = soundConfig.pitchEnabled ? soundConfig.pitchAmount : 0;
-  if (pitchDepth > 0) {
-    pitchShift.wet.rampTo(clamp(mapRange(pitchDepth, 0, 1, 0.15, 1), 0, 1), 0.08);
-  } else {
-    smoothedPitch = 0;
-    pitchShift.pitch = 0;
-    pitchShift.wet.rampTo(0, 0.08);
-  }
-}
-
-function hasRequiredLandmarks(hand, indices) {
-  if (!hand) {
-    return false;
-  }
-  return indices.every((i) => hand[i] && Number.isFinite(hand[i].x) && Number.isFinite(hand[i].y));
-}
-
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
@@ -82,6 +56,13 @@ function clamp(value, min, max) {
 function mapRange(value, inMin, inMax, outMin, outMax) {
   const t = clamp((value - inMin) / (inMax - inMin), 0, 1);
   return outMin + (outMax - outMin) * t;
+}
+
+function hasRequiredLandmarks(hand, indices) {
+  if (!hand) {
+    return false;
+  }
+  return indices.every((i) => hand[i] && Number.isFinite(hand[i].x) && Number.isFinite(hand[i].y));
 }
 
 function distance3D(a, b) {
@@ -192,6 +173,128 @@ async function waitForDuration(element) {
   });
 }
 
+function instrumentLevelMultiplier(instrument) {
+  if (instrument === "bass") {
+    return 1.2;
+  }
+  if (instrument === "drums") {
+    return 1.35;
+  }
+  if (instrument === "keys") {
+    return 1.05;
+  }
+  return 1;
+}
+
+function baseMidiForInstrument(instrument) {
+  if (instrument === "bass") {
+    return 36;
+  }
+  if (instrument === "drums") {
+    return 43;
+  }
+  if (instrument === "keys") {
+    return 55;
+  }
+  return 48;
+}
+
+function scaleStepsForInstrument(instrument) {
+  if (instrument === "bass") {
+    return 16;
+  }
+  if (instrument === "drums") {
+    return 12;
+  }
+  return 24;
+}
+
+function midiFromScaleIndex(index, baseMidi) {
+  const octave = Math.floor(index / MAJOR_SCALE_STEPS.length);
+  const degree = MAJOR_SCALE_STEPS[index % MAJOR_SCALE_STEPS.length];
+  return baseMidi + octave * 12 + degree;
+}
+
+function noteFromMidi(midi) {
+  if (!ToneLib || !ToneLib.Frequency) {
+    return "C4";
+  }
+  return ToneLib.Frequency(midi, "midi").toNote();
+}
+
+function hzFromMidi(midi) {
+  if (!ToneLib || !ToneLib.Frequency) {
+    return 220;
+  }
+  return ToneLib.Frequency(midi, "midi").toFrequency();
+}
+
+function applySoundConfig() {
+  if (!initialized || !instrumentGain || !filter || !reverb || !pitchShift) {
+    return;
+  }
+
+  filter.type = soundConfig.filterMode;
+
+  if (!soundConfig.filterEnabled || soundConfig.filterAmount <= 0) {
+    filter.frequency.rampTo(18000, 0.08);
+    filter.Q.rampTo(0.0001, 0.08);
+  }
+
+  const baseReverbWet = soundConfig.reverbEnabled ? mapRange(soundConfig.reverbAmount, 0, 1, 0.02, 0.95) : 0;
+  reverb.wet.rampTo(baseReverbWet, 0.1);
+
+  if (soundConfig.pitchEnabled && soundConfig.pitchAmount > 0) {
+    const wet = clamp(mapRange(soundConfig.pitchAmount, 0, 1, 0.18, 1), 0, 1);
+    pitchShift.wet.rampTo(wet, 0.1);
+  } else {
+    smoothedPitch = 0;
+    pitchShift.pitch = 0;
+    pitchShift.wet.rampTo(0, 0.1);
+  }
+}
+
+function triggerMelodicInstrument(noteMidi, velocity, now) {
+  const note = noteFromMidi(noteMidi);
+
+  if (soundConfig.instrument === "bass" && bassSynth) {
+    bassSynth.triggerAttackRelease(note, "8n", now, velocity);
+    return;
+  }
+
+  if (soundConfig.instrument === "keys" && keysSynth) {
+    keysSynth.triggerAttackRelease(note, "8n", now, velocity);
+    return;
+  }
+
+  if (guitarSynth) {
+    guitarSynth.triggerAttack(note, now);
+  }
+}
+
+function triggerDrumInstrument(scaleIndex, velocity, now) {
+  const lane = scaleIndex % 4;
+
+  if (lane === 0 && kickSynth) {
+    kickSynth.triggerAttackRelease("C1", "8n", now, velocity);
+    return;
+  }
+
+  if (lane === 1 && snareSynth) {
+    snareSynth.triggerAttackRelease("16n", now, velocity);
+    return;
+  }
+
+  if (lane === 2 && hatSynth) {
+    hatSynth.triggerAttackRelease("16n", now, velocity * 0.8);
+    return;
+  }
+
+  if (kickSynth) {
+    kickSynth.triggerAttackRelease("G1", "8n", now, velocity * 0.9);
+  }
+}
+
 export function getAudioState() {
   const hasTrack = Boolean(mediaElement);
   const duration = getDuration();
@@ -218,6 +321,17 @@ export function setInstrumentType(type) {
   }
 
   soundConfig.instrument = type;
+  lastScaleIndex = null;
+  applySoundConfig();
+  return getSoundConfig();
+}
+
+export function setFilterMode(mode) {
+  if (!FILTER_TYPES.has(mode)) {
+    return getSoundConfig();
+  }
+
+  soundConfig.filterMode = mode;
   applySoundConfig();
   return getSoundConfig();
 }
@@ -268,27 +382,66 @@ export async function initAudio() {
   }
 
   gainNode = new ToneLib.Gain(0).toDestination();
-  reverb = new ToneLib.Reverb({ decay: 2.3, wet: 0.2 });
-  filter = new ToneLib.Filter({ type: "lowpass", frequency: 1900, Q: 0.8 });
-  pitchShift = new ToneLib.PitchShift({ pitch: 0, wet: 1 });
-  synthGain = new ToneLib.Gain(0.18);
+  reverb = new ToneLib.Reverb({ decay: 2.8, wet: 0.42 });
+  filter = new ToneLib.Filter({ type: "lowpass", frequency: 2400, Q: 1.4 });
+  pitchShift = new ToneLib.PitchShift({ pitch: 0, wet: 0.75 });
+  instrumentGain = new ToneLib.Gain(0);
 
   if (typeof reverb.generate === "function") {
     await reverb.generate();
   }
 
   pitchShift.connect(filter);
-  synthGain.connect(filter);
+  instrumentGain.connect(filter);
   filter.connect(reverb);
   reverb.connect(gainNode);
 
-  oscillator = new ToneLib.Oscillator({
-    type: "sine",
-    frequency: lastHz,
-    volume: -18,
+  keysSynth = new ToneLib.PolySynth(ToneLib.Synth, {
+    oscillator: { type: "triangle" },
+    envelope: { attack: 0.01, decay: 0.18, sustain: 0.2, release: 0.4 },
+  }).connect(instrumentGain);
+
+  guitarSynth = new ToneLib.PluckSynth({
+    attackNoise: 1,
+    dampening: 2400,
+    resonance: 0.92,
+  }).connect(instrumentGain);
+
+  bassSynth = new ToneLib.MonoSynth({
+    oscillator: { type: "square" },
+    filter: { Q: 3, type: "lowpass", rolloff: -24 },
+    envelope: { attack: 0.01, decay: 0.26, sustain: 0.32, release: 0.35 },
+    filterEnvelope: {
+      attack: 0.005,
+      decay: 0.12,
+      sustain: 0.08,
+      release: 0.2,
+      baseFrequency: 80,
+      octaves: 3.5,
+    },
+  }).connect(instrumentGain);
+
+  kickSynth = new ToneLib.MembraneSynth({
+    pitchDecay: 0.05,
+    octaves: 9,
+    envelope: { attack: 0.001, decay: 0.35, sustain: 0, release: 0.15 },
+  }).connect(instrumentGain);
+
+  snareSynth = new ToneLib.NoiseSynth({
+    noise: { type: "white" },
+    envelope: { attack: 0.001, decay: 0.16, sustain: 0 },
   });
-  oscillator.connect(synthGain);
-  oscillator.start();
+  snareFilter = new ToneLib.Filter({ type: "highpass", frequency: 2200, Q: 0.6 }).connect(instrumentGain);
+  snareSynth.connect(snareFilter);
+
+  hatSynth = new ToneLib.MetalSynth({
+    frequency: 240,
+    envelope: { attack: 0.001, decay: 0.08, release: 0.01 },
+    harmonicity: 5.1,
+    modulationIndex: 32,
+    resonance: 2600,
+    octaves: 1.8,
+  }).connect(instrumentGain);
 
   initialized = true;
   applySoundConfig();
@@ -387,7 +540,7 @@ export async function setPlaybackFromGesture(shouldPlay) {
 export function updateSound(rightHand, leftHand) {
   void leftHand;
 
-  if (!initialized || !oscillator || !filter || !reverb || !gainNode || !synthGain || !pitchShift) {
+  if (!initialized || !instrumentGain || !filter || !reverb || !gainNode || !pitchShift) {
     return {
       hz: lastHz,
       volume: lastVolume,
@@ -400,93 +553,86 @@ export function updateSound(rightHand, leftHand) {
   }
 
   if (hasRequiredLandmarks(rightHand, [0, 4, 8, 12, 16, 20])) {
-    const wristY = rightHand[0].y;
+    const wristY = clamp(rightHand[0].y, 0, 1);
     const openness = opennessFromHand(rightHand);
 
-    const thumbControl = tipControl(rightHand, 4);
     const indexControl = tipControl(rightHand, 8);
     const middleControl = tipControl(rightHand, 12);
     const ringControl = tipControl(rightHand, 16);
-    const pinkyControl = tipControl(rightHand, 20);
-
-    const baseHz = mapRange(wristY, 0, 1, 680, 120);
-    const closePitchOffset = mapRange(
-      openness,
-      RIGHT_CLOSED_OPENNESS,
-      RIGHT_OPEN_OPENNESS,
-      -250,
-      10
-    );
-    const hz = clamp(baseHz + closePitchOffset, 50, 900);
 
     const volume = mapRange(openness, RIGHT_CLOSED_OPENNESS, RIGHT_OPEN_OPENNESS, 0, 1);
-    const synthLevel = mapRange(thumbControl, 0, 1, 0.03, 0.45);
-    const baseFilterFreq = mapRange(indexControl, 0, 1, 140, 9000);
-    const wet = mapRange(middleControl, 0, 1, 0.08, 0.95);
-    const ringPitch = mapRange(ringControl, 0, 1, -14, 14);
-    const closePitchBias = mapRange(
-      openness,
-      RIGHT_CLOSED_OPENNESS,
-      RIGHT_OPEN_OPENNESS,
-      -8,
-      0
-    );
-    const oscVolumeDb = mapRange(pinkyControl, 0, 1, -24, -2);
-
     const synthDepth = soundConfig.synthEnabled ? soundConfig.synthAmount : 0;
-    const synthTarget = clamp(synthLevel * mapRange(synthDepth, 0, 1, 0, 2.2), 0, 1);
+    const instrumentGainTarget = clamp(
+      volume * mapRange(synthDepth, 0, 1, 0, 1.35) * instrumentLevelMultiplier(soundConfig.instrument),
+      0,
+      1.4
+    );
+    gainNode.gain.rampTo(volume, 0.05);
+    instrumentGain.gain.rampTo(instrumentGainTarget, 0.05);
+
+    const scaleSteps = scaleStepsForInstrument(soundConfig.instrument);
+    const scaleIndex = Math.round((1 - wristY) * (scaleSteps - 1));
+    const midi = midiFromScaleIndex(scaleIndex, baseMidiForInstrument(soundConfig.instrument));
+    const hz = hzFromMidi(midi);
 
     const filterDepth = soundConfig.filterEnabled ? soundConfig.filterAmount : 0;
-    const filterTarget = clamp(baseFilterFreq * filterDepth + 18000 * (1 - filterDepth), 80, 18000);
-    const filterQ = mapRange(filterDepth, 0, 1, 0.0001, 8);
+    const filterMin = soundConfig.instrument === "bass" ? 60 : soundConfig.instrument === "drums" ? 120 : 180;
+    const filterMax = soundConfig.instrument === "bass" ? 2200 : 9000;
+    const gestureFreq = mapRange(indexControl, 0, 1, filterMin, filterMax);
+    const filterTarget = clamp(gestureFreq * filterDepth + 18000 * (1 - filterDepth), 40, 18000);
+    const filterQ = mapRange(filterDepth, 0, 1, 0.0001, 12) * mapRange(middleControl, 0, 1, 0.8, 1.5);
+    filter.frequency.rampTo(filterTarget, 0.08);
+    filter.Q.rampTo(filterQ, 0.08);
 
     const reverbDepth = soundConfig.reverbEnabled ? soundConfig.reverbAmount : 0;
-    const reverbTarget = clamp(wet * mapRange(reverbDepth, 0, 1, 0, 1.35), 0, 1);
+    const reverbGesture = mapRange(middleControl, 0, 1, 0.08, 1);
+    const reverbTarget = clamp(reverbGesture * mapRange(reverbDepth, 0, 1, 0, 1.2), 0, 1);
+    reverb.wet.rampTo(reverbTarget, 0.1);
 
     const pitchDepth = soundConfig.pitchEnabled ? soundConfig.pitchAmount : 0;
-    const targetPitch = (ringPitch + closePitchBias) * mapRange(pitchDepth, 0, 1, 0, 2.2);
-    const pitchWet = soundConfig.pitchEnabled ? clamp(mapRange(pitchDepth, 0, 1, 0.15, 1), 0, 1) : 0;
-
-    oscillator.frequency.rampTo(hz, 0.08);
-    oscillator.volume.rampTo(oscVolumeDb, 0.1);
-    synthGain.gain.rampTo(synthTarget, 0.08);
-    filter.frequency.rampTo(filterTarget, 0.1);
-    filter.Q.rampTo(filterQ, 0.1);
-    reverb.wet.rampTo(reverbTarget, 0.1);
-    gainNode.gain.rampTo(volume, 0.05);
-
-    if (soundConfig.pitchEnabled && pitchDepth > 0) {
+    if (pitchDepth > 0) {
+      const targetPitch = mapRange(ringControl, 0, 1, -12, 12) * mapRange(pitchDepth, 0, 1, 0, 2.4);
       smoothedPitch += (targetPitch - smoothedPitch) * 0.24;
-      pitchShift.wet.rampTo(pitchWet, 0.1);
       pitchShift.pitch = smoothedPitch;
+      pitchShift.wet.rampTo(clamp(mapRange(pitchDepth, 0, 1, 0.18, 1), 0, 1), 0.08);
     } else {
       smoothedPitch = 0;
-      pitchShift.wet.rampTo(0, 0.1);
       pitchShift.pitch = 0;
+      pitchShift.wet.rampTo(0, 0.08);
     }
 
+    const openNow = openness > 0.115;
+    const timeNow = ToneLib.now();
+    const minTriggerInterval = soundConfig.instrument === "drums" ? 0.09 : 0.11;
+    const shouldTrigger =
+      openNow &&
+      (scaleIndex !== lastScaleIndex || !lastRightOpen) &&
+      timeNow - lastTriggerTime > minTriggerInterval;
+
+    if (shouldTrigger) {
+      const velocity = clamp(volume, 0.08, 1);
+      if (soundConfig.instrument === "drums") {
+        triggerDrumInstrument(scaleIndex, velocity, timeNow);
+      } else {
+        triggerMelodicInstrument(midi, velocity, timeNow);
+      }
+      lastTriggerTime = timeNow;
+    }
+
+    lastRightOpen = openNow;
+    lastScaleIndex = scaleIndex;
     lastHz = hz;
     lastVolume = volume;
   } else {
-    const idleSynthDepth = soundConfig.synthEnabled ? soundConfig.synthAmount : 0;
-    const idleFilterDepth = soundConfig.filterEnabled ? soundConfig.filterAmount : 0;
-    const idleReverbDepth = soundConfig.reverbEnabled ? soundConfig.reverbAmount : 0;
-    const idlePitchDepth = soundConfig.pitchEnabled ? soundConfig.pitchAmount : 0;
+    gainNode.gain.rampTo(0, 0.08);
+    instrumentGain.gain.rampTo(0, 0.08);
+    lastRightOpen = false;
+    lastScaleIndex = null;
 
-    synthGain.gain.rampTo(mapRange(idleSynthDepth, 0, 1, 0, 0.05), 0.1);
-    oscillator.volume.rampTo(-20, 0.12);
-    filter.frequency.rampTo(1900 * idleFilterDepth + 18000 * (1 - idleFilterDepth), 0.12);
-    filter.Q.rampTo(mapRange(idleFilterDepth, 0, 1, 0.0001, 6), 0.12);
-    reverb.wet.rampTo(mapRange(idleReverbDepth, 0, 1, 0, 0.35), 0.12);
-
-    if (soundConfig.pitchEnabled && idlePitchDepth > 0) {
-      smoothedPitch += (0 - smoothedPitch) * 0.15;
-      pitchShift.wet.rampTo(mapRange(idlePitchDepth, 0, 1, 0.15, 1), 0.1);
-      pitchShift.pitch = smoothedPitch;
-    } else {
+    if (!soundConfig.pitchEnabled || soundConfig.pitchAmount <= 0) {
       smoothedPitch = 0;
-      pitchShift.wet.rampTo(0, 0.1);
       pitchShift.pitch = 0;
+      pitchShift.wet.rampTo(0, 0.1);
     }
   }
 

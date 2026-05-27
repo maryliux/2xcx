@@ -36,10 +36,20 @@
       <div class="sound-panel-group">
         <p class="sound-panel-label">instrument</p>
         <div class="instrument-grid">
-          <button type="button" class="sound-toggle is-active" data-instrument="sine" aria-pressed="true">sine</button>
-          <button type="button" class="sound-toggle" data-instrument="triangle" aria-pressed="false">triangle</button>
-          <button type="button" class="sound-toggle" data-instrument="sawtooth" aria-pressed="false">saw</button>
-          <button type="button" class="sound-toggle" data-instrument="square" aria-pressed="false">square</button>
+          <button type="button" class="sound-toggle is-active" data-instrument="guitar" aria-pressed="true">guitar</button>
+          <button type="button" class="sound-toggle" data-instrument="bass" aria-pressed="false">bass</button>
+          <button type="button" class="sound-toggle" data-instrument="drums" aria-pressed="false">drums</button>
+          <button type="button" class="sound-toggle" data-instrument="keys" aria-pressed="false">keys</button>
+        </div>
+      </div>
+
+      <div class="sound-panel-group">
+        <p class="sound-panel-label">filter mode</p>
+        <div class="instrument-grid filter-grid">
+          <button type="button" class="sound-toggle is-active" data-filter="lowpass" aria-pressed="true">lowpass</button>
+          <button type="button" class="sound-toggle" data-filter="bandpass" aria-pressed="false">bandpass</button>
+          <button type="button" class="sound-toggle" data-filter="highpass" aria-pressed="false">highpass</button>
+          <button type="button" class="sound-toggle" data-filter="notch" aria-pressed="false">notch</button>
         </div>
       </div>
 
@@ -91,7 +101,7 @@
         <div id="song-progress-fill"></div>
       </div>
       <p id="song-time">00:00 / 00:00</p>
-      <p id="song-hint">left hand open/play, closed/pause · side panel toggles + sliders shape sound</p>
+      <p id="song-hint">left hand open/play, closed/pause · move right hand up/down to climb scale</p>
     </div>
 
     <input
@@ -111,6 +121,7 @@
         loadAudioFile,
         setEffectAmount,
         setEffectEnabled,
+        setFilterMode,
         setInstrumentType,
         setPlaybackFromGesture,
         togglePlayback,
@@ -132,6 +143,7 @@
       const songProgressFill = document.getElementById("song-progress-fill");
       const uploadStatus = document.getElementById("upload-status");
       const instrumentButtons = Array.from(document.querySelectorAll("[data-instrument]"));
+      const filterButtons = Array.from(document.querySelectorAll("[data-filter]"));
       const effectToggles = Array.from(document.querySelectorAll("[data-effect]"));
       const effectAmountSliders = Array.from(document.querySelectorAll("[data-effect-amount]"));
 
@@ -172,6 +184,12 @@
       function syncSoundPanel(config = getSoundConfig()) {
         instrumentButtons.forEach((button) => {
           const active = button.dataset.instrument === config.instrument;
+          button.classList.toggle("is-active", active);
+          button.setAttribute("aria-pressed", String(active));
+        });
+
+        filterButtons.forEach((button) => {
+          const active = button.dataset.filter === config.filterMode;
           button.classList.toggle("is-active", active);
           button.setAttribute("aria-pressed", String(active));
         });
@@ -288,7 +306,7 @@
 
         playToggleButton.disabled = !hasTrack;
         playToggleButton.textContent = audioState?.isPlaying ? "pause" : "play";
-        songHint.textContent = "left hand open = play, closed = pause · side panel toggles + sliders shape sound";
+        songHint.textContent = "left hand open = play, closed = pause · move right hand up/down to climb scale";
         uploadStatus.textContent = uploadMessage;
       }
 
@@ -507,7 +525,7 @@
         } catch (error) {
           console.error("Import failed", error);
           uploadMessage = "upload successful";
-          songHint.textContent = "left hand open = play, closed = pause · side panel toggles + sliders shape sound";
+          songHint.textContent = "left hand open = play, closed = pause · move right hand up/down to climb scale";
           updateSongIndicator(getAudioState());
         } finally {
           importAudioButton.disabled = false;
@@ -522,6 +540,17 @@
             return;
           }
           setInstrumentType(instrument);
+          syncSoundPanel();
+        });
+      });
+
+      filterButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          const mode = button.dataset.filter;
+          if (!mode) {
+            return;
+          }
+          setFilterMode(mode);
           syncSoundPanel();
         });
       });
