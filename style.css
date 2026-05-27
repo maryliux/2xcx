@@ -53,16 +53,6 @@ video {
   object-fit: contain;
 }
 
-#preloader-note {
-  position: absolute;
-  bottom: clamp(32px, 6vh, 64px);
-  margin: 0;
-  font-size: 11px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.7);
-}
-
 #overlay {
   position: absolute;
   inset: 0;
