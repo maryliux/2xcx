@@ -27,11 +27,15 @@ let lastGesturePlaybackState = null;
 let lastScaleIndex = null;
 let lastTriggerTime = 0;
 let lastRightOpen = false;
+let pinchIsClosed = false;
+let pinchArmedForBurst = false;
 
 const TIP_INDICES = [4, 8, 12, 16, 20];
 const RIGHT_CLOSED_OPENNESS = 0.09;
 const RIGHT_OPEN_OPENNESS = 0.33;
 const MAJOR_SCALE_STEPS = [0, 2, 4, 5, 7, 9, 11];
+const PINCH_CLOSE_THRESHOLD = 0.38;
+const PINCH_OPEN_THRESHOLD = 0.52;
 
 const INSTRUMENT_TYPES = new Set(["guitar", "bass", "drums", "keys"]);
 const FILTER_TYPES = new Set(["lowpass", "bandpass", "highpass", "notch"]);
@@ -92,6 +96,16 @@ function tipControl(hand, index) {
     return 0;
   }
   return 1 - clamp(hand[index].y, 0, 1);
+}
+
+function pinchRatioFromHand(hand) {
+  if (!hand || !hand[0] || !hand[4] || !hand[8] || !hand[9]) {
+    return 1;
+  }
+
+  const pinchDistance = distance3D(hand[4], hand[8]);
+  const palmScale = Math.max(distance3D(hand[0], hand[9]), 0.0001);
+  return pinchDistance / palmScale;
 }
 
 function disposeMediaSource() {
@@ -292,6 +306,75 @@ function triggerDrumInstrument(scaleIndex, velocity, now) {
 
   if (kickSynth) {
     kickSynth.triggerAttackRelease("G1", "8n", now, velocity * 0.9);
+  }
+}
+
+function triggerPinchArticulation(noteMidi, scaleIndex, velocity, now) {
+  if (soundConfig.instrument === "drums") {
+    if (hatSynth) {
+      hatSynth.triggerAttackRelease("32n", now, velocity * 0.9);
+    }
+    if (snareSynth) {
+      snareSynth.triggerAttackRelease("32n", now + 0.018, velocity * 0.35);
+    }
+    return;
+  }
+
+  const note = noteFromMidi(noteMidi);
+
+  if (soundConfig.instrument === "bass" && bassSynth) {
+    bassSynth.triggerAttackRelease(note, "16n", now, velocity * 0.75);
+    return;
+  }
+
+  if (soundConfig.instrument === "keys" && keysSynth) {
+    keysSynth.triggerAttackRelease(note, "16n", now, velocity * 0.72);
+    return;
+  }
+
+  if (guitarSynth) {
+    guitarSynth.triggerAttack(note, now);
+  }
+}
+
+function triggerBurstArticulation(noteMidi, scaleIndex, velocity, now) {
+  if (soundConfig.instrument === "drums") {
+    if (kickSynth) {
+      kickSynth.triggerAttackRelease("C1", "8n", now, velocity);
+    }
+    if (snareSynth) {
+      snareSynth.triggerAttackRelease("16n", now + 0.035, velocity * 0.95);
+    }
+    if (hatSynth) {
+      hatSynth.triggerAttackRelease("16n", now + 0.07, velocity * 0.85);
+    }
+    return;
+  }
+
+  const baseMidi = noteMidi;
+  const fifthMidi = noteMidi + 7;
+  const octaveMidi = noteMidi + 12;
+
+  if (soundConfig.instrument === "bass" && bassSynth) {
+    bassSynth.triggerAttackRelease(noteFromMidi(baseMidi), "8n", now, velocity);
+    bassSynth.triggerAttackRelease(noteFromMidi(octaveMidi), "16n", now + 0.065, velocity * 0.72);
+    return;
+  }
+
+  if (soundConfig.instrument === "keys" && keysSynth) {
+    keysSynth.triggerAttackRelease(
+      [noteFromMidi(baseMidi), noteFromMidi(fifthMidi), noteFromMidi(octaveMidi)],
+      "8n",
+      now,
+      velocity
+    );
+    return;
+  }
+
+  if (guitarSynth) {
+    guitarSynth.triggerAttack(noteFromMidi(baseMidi), now);
+    guitarSynth.triggerAttack(noteFromMidi(fifthMidi), now + 0.03);
+    guitarSynth.triggerAttack(noteFromMidi(octaveMidi), now + 0.06);
   }
 }
 
@@ -633,6 +716,22 @@ export function updateSound(rightHand, leftHand) {
       lastTriggerTime = timeNow;
     }
 
+    const pinchRatio = pinchRatioFromHand(rightHand);
+    const enteredPinch = !pinchIsClosed && pinchRatio <= PINCH_CLOSE_THRESHOLD;
+    const releasedPinch = pinchIsClosed && pinchRatio >= PINCH_OPEN_THRESHOLD;
+
+    if (enteredPinch) {
+      pinchIsClosed = true;
+      pinchArmedForBurst = true;
+      triggerPinchArticulation(midi, scaleIndex, clamp(volume, 0.12, 1), timeNow);
+    } else if (releasedPinch) {
+      pinchIsClosed = false;
+      if (pinchArmedForBurst) {
+        triggerBurstArticulation(midi, scaleIndex, clamp(volume, 0.14, 1), timeNow);
+      }
+      pinchArmedForBurst = false;
+    }
+
     lastRightOpen = openNow;
     lastScaleIndex = scaleIndex;
     lastHz = hz;
@@ -642,6 +741,8 @@ export function updateSound(rightHand, leftHand) {
     instrumentGain.gain.rampTo(0, 0.08);
     lastRightOpen = false;
     lastScaleIndex = null;
+    pinchIsClosed = false;
+    pinchArmedForBurst = false;
 
     if (!soundConfig.pitchEnabled || soundConfig.pitchAmount <= 0) {
       smoothedPitch = 0;
