@@ -19,6 +19,8 @@ let smoothedPitch = 0;
 let lastGesturePlaybackState = null;
 
 const TIP_INDICES = [4, 8, 12, 16, 20];
+const RIGHT_CLOSED_OPENNESS = 0.09;
+const RIGHT_OPEN_OPENNESS = 0.33;
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -289,15 +291,29 @@ export function updateSound(rightHand, leftHand) {
     const pinkyControl = tipControl(rightHand, 20);
 
     const baseHz = mapRange(wristY, 0, 1, 680, 120);
-    const closePitchOffset = mapRange(openness, 0.05, 0.35, -250, 10);
+    const closePitchOffset = mapRange(
+      openness,
+      RIGHT_CLOSED_OPENNESS,
+      RIGHT_OPEN_OPENNESS,
+      -250,
+      10
+    );
     const hz = clamp(baseHz + closePitchOffset, 50, 900);
 
-    const volume = mapRange(openness, 0.05, 0.35, 0, 1);
+    // Right-hand openness directly scales master volume:
+    // closed fist = 0%, open hand = 100%.
+    const volume = mapRange(openness, RIGHT_CLOSED_OPENNESS, RIGHT_OPEN_OPENNESS, 0, 1);
     const synthLevel = mapRange(thumbControl, 0, 1, 0.02, 0.32);
     const filterFreq = mapRange(indexControl, 0, 1, 260, 8200);
     const wet = mapRange(middleControl, 0, 1, 0.06, 0.75);
     const ringPitch = mapRange(ringControl, 0, 1, -8, 8);
-    const closePitchBias = mapRange(openness, 0.05, 0.35, -5, 0);
+    const closePitchBias = mapRange(
+      openness,
+      RIGHT_CLOSED_OPENNESS,
+      RIGHT_OPEN_OPENNESS,
+      -5,
+      0
+    );
     const targetPitch = ringPitch + closePitchBias;
     const oscVolumeDb = mapRange(pinkyControl, 0, 1, -30, -8);
 
