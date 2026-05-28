@@ -65,8 +65,8 @@ export function drawHands(ctx, results, canvasW, canvasH) {
   }
 
   ctx.save();
-  ctx.strokeStyle = "#00ffcc";
-  ctx.fillStyle = "#00ffcc";
+  ctx.strokeStyle = "#ffd84d";
+  ctx.fillStyle = "#ffd84d";
   ctx.lineWidth = 1;
 
   hands.forEach((landmarks) => {

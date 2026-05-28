@@ -2,7 +2,7 @@ const CELL_SIZE = 7;
 const SAMPLE_STRIDE = 1;
 
 const BACKGROUND_COLOR = "#000000";
-const LINE_COLOR = "rgba(143, 200, 169, 0.24)";
+const LINE_COLOR = "rgba(255, 216, 77, 0.24)";
 const LINE_COLOR_STRONG = "rgba(244, 248, 255, 0.2)";
 const NODE_COLOR = "#e8f2ee";
 
