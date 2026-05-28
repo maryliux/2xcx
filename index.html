@@ -728,10 +728,10 @@
         ctx.fillText("VOL", panelX + 126, panelY + 12);
 
         ctx.font = '600 22px "Space Grotesk", sans-serif';
-        ctx.fillStyle = "#2fb8ff";
+        ctx.fillStyle = "#ffd84d";
         ctx.fillText(hudHz.toFixed(1), panelX + 14, panelY + 23);
 
-        ctx.fillStyle = volumeIsMoving ? "#ff5fc7" : "rgba(255, 255, 255, 0.9)";
+        ctx.fillStyle = volumeIsMoving ? "#ffd84d" : "rgba(255, 255, 255, 0.9)";
         ctx.fillText(`${Math.round(hudVolume * 100)}%`, panelX + 126, panelY + 23);
 
         ctx.font = '500 9px "Space Grotesk", sans-serif';
