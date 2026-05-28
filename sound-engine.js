@@ -537,6 +537,24 @@ export async function setPlaybackFromGesture(shouldPlay) {
   return getAudioState();
 }
 
+export function setPlaybackProgress(progressRatio) {
+  if (!mediaElement) {
+    return getAudioState();
+  }
+
+  const duration = getDuration();
+  if (!(duration > 0)) {
+    return getAudioState();
+  }
+
+  const targetTime = clamp(progressRatio, 0, 1) * duration;
+  if (Number.isFinite(targetTime)) {
+    mediaElement.currentTime = targetTime;
+  }
+
+  return getAudioState();
+}
+
 export function updateSound(rightHand, leftHand) {
   void leftHand;
 

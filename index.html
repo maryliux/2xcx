@@ -264,6 +264,7 @@
         setFilterMode,
         setInstrumentType,
         setPlaybackFromGesture,
+        setPlaybackProgress,
         togglePlayback,
         updateSound,
       } from "./sound-engine.js";
@@ -284,6 +285,7 @@
       const songTitle = document.getElementById("song-title");
       const songTime = document.getElementById("song-time");
       const songHint = document.getElementById("song-hint");
+      const songProgressTrack = document.getElementById("song-progress-track");
       const songProgressFill = document.getElementById("song-progress-fill");
       const uploadStatus = document.getElementById("upload-status");
       const trackerPitchFill = document.getElementById("tracker-pitch-fill");
@@ -311,6 +313,8 @@
       let overlaySmoothY = 0.5;
       let overlayHover = 0;
       let overlayHoverTarget = 0;
+      let isScrubbingProgress = false;
+      let scrubPointerId = null;
 
       const leftHandGestureState = {
         playbackState: null,
@@ -590,6 +594,60 @@
         playToggleButton.textContent = audioState?.isPlaying ? "pause" : "play";
         songHint.textContent = "right hand open = play, closed = pause · left hand up/down scale, side/side filter, fingers fx";
         uploadStatus.textContent = uploadMessage;
+      }
+
+      function scrubProgressToClientX(clientX) {
+        if (!songProgressTrack) {
+          return;
+        }
+
+        const bounds = songProgressTrack.getBoundingClientRect();
+        if (!bounds.width) {
+          return;
+        }
+
+        const ratio = clamp((clientX - bounds.left) / bounds.width, 0, 1);
+        const audioState = setPlaybackProgress(ratio);
+        updateSongIndicator(audioState);
+      }
+
+      function handleProgressPointerDown(event) {
+        if (event.pointerType === "mouse" && event.button !== 0) {
+          return;
+        }
+
+        isScrubbingProgress = true;
+        scrubPointerId = event.pointerId;
+        event.preventDefault();
+
+        if (songProgressTrack?.setPointerCapture) {
+          try {
+            songProgressTrack.setPointerCapture(event.pointerId);
+          } catch (captureError) {
+            console.debug("Pointer capture unavailable:", captureError);
+          }
+        }
+
+        scrubProgressToClientX(event.clientX);
+      }
+
+      function handleProgressPointerMove(event) {
+        if (!isScrubbingProgress || event.pointerId !== scrubPointerId) {
+          return;
+        }
+
+        event.preventDefault();
+        scrubProgressToClientX(event.clientX);
+      }
+
+      function handleProgressPointerEnd(event) {
+        if (!isScrubbingProgress || event.pointerId !== scrubPointerId) {
+          return;
+        }
+
+        scrubProgressToClientX(event.clientX);
+        isScrubbingProgress = false;
+        scrubPointerId = null;
       }
 
       function selectHands(results) {
@@ -906,6 +964,14 @@
         overlayTargetY = 0.5;
       });
       instructionCloseButton?.addEventListener("click", hideInstructionReceipt);
+      songProgressTrack?.addEventListener("pointerdown", handleProgressPointerDown);
+      songProgressTrack?.addEventListener("pointermove", handleProgressPointerMove);
+      songProgressTrack?.addEventListener("pointerup", handleProgressPointerEnd);
+      songProgressTrack?.addEventListener("pointercancel", handleProgressPointerEnd);
+      songProgressTrack?.addEventListener("lostpointercapture", () => {
+        isScrubbingProgress = false;
+        scrubPointerId = null;
+      });
       syncSoundPanel();
       updateFingerMeters(fingerEffectsFromHand(null));
       updatePitchVolumeTrackers(0, 0);
